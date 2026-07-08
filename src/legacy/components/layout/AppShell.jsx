@@ -5,7 +5,9 @@ const logo = '/logo.jpg'
 
 const navItems = [
   { id: 'home', label: 'Home', icon: 'bi-house' },
+  { id: 'store', label: 'Store', icon: 'bi-bag' },
   { id: 'discover', label: 'Discover', icon: 'bi-compass' },
+  { id: 'promotions', label: 'VIP', icon: 'bi-stars' },
   { id: 'profile', label: 'Profile', icon: 'bi-person-circle', private: true },
   { id: 'admin', label: 'Admin', icon: 'bi-shield-lock', admin: true },
 ]
@@ -89,7 +91,9 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
             {!['admin', 'profile'].includes(activePage) && (
               <>
                 <button className="footer-link" onClick={() => navigateTo('home')} type="button">Home</button>
+                <button className="footer-link" onClick={() => navigateTo('store')} type="button">Store</button>
                 <button className="footer-link" onClick={() => navigateTo('discover')} type="button">Discover</button>
+                <button className="footer-link" onClick={() => navigateTo('promotions')} type="button">VIP</button>
               </>
             )}
             {!isGuest && <button onClick={() => navigateTo('profile')} type="button">Profile</button>}

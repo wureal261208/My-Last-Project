@@ -36,8 +36,10 @@ const AdminPage = lazy(() => import('./components/pages/AdminPage'))
 const BookDetailPage = lazy(() => import('./components/pages/BookDetailPage'))
 const DiscoverPage = lazy(() => import('./components/pages/DiscoverPage'))
 const HomePage = lazy(() => import('./components/pages/HomePage'))
+const PromotionsPage = lazy(() => import('./components/pages/PromotionsPage'))
 const ProfilePage = lazy(() => import('./components/pages/ProfilePage'))
 const ReaderPage = lazy(() => import('./components/pages/ReaderPage'))
+const StorePage = lazy(() => import('./components/pages/StorePage'))
 
 const emptyAuthForm = { name: '', email: '', password: '' }
 const emptyAdminBook = {
@@ -110,6 +112,8 @@ function App() {
   const [authForm, setAuthForm] = useState(emptyAuthForm)
   const [adminBook, setAdminBook] = useState(emptyAdminBook)
   const [knownUsers, setKnownUsers] = useState(globalDataDefaults.knownUsers)
+  const [cartItems, setCartItems] = useState([])
+  const [purchaseHistory, setPurchaseHistory] = useState([])
   const [globalDataReady, setGlobalDataReady] = useState(false)
   const [userDataReady, setUserDataReady] = useState(false)
   const accountSettingsRef = useRef(accountSettings)
@@ -625,6 +629,43 @@ function App() {
     )
   }
 
+  function addToCart(book) {
+    if (account.role === 'anonymous') {
+      setToast({ type: 'error', message: 'Anonymous accounts can preview only. Please login before buying books.' })
+      navigateTo('auth')
+      return
+    }
+
+    setCartItems((current) => (current.some((item) => item.id === book.id) ? current : [...current, book]))
+    setToast({ type: 'success', message: `${book.title} added to cart.` })
+  }
+
+  function checkoutCart() {
+    if (account.role === 'anonymous') {
+      setToast({ type: 'error', message: 'Login is required before checkout.' })
+      navigateTo('auth')
+      return
+    }
+
+    if (!cartItems.length) return
+
+    setPurchaseHistory((current) => [
+      ...cartItems.map((book) => ({
+        id: book.id,
+        title: book.title,
+        purchasedAt: new Date().toISOString(),
+      })),
+      ...current,
+    ])
+    setHistory((current) => [...cartItems.map((book) => book.id), ...current].slice(0, 20))
+    setCartItems([])
+    setToast({
+      type: 'success',
+      message: account.accountType === 'vip' ? 'Checkout complete. VIP discount applied.' : 'Checkout complete. Books added to your library.',
+    })
+    navigateTo('profile')
+  }
+
   function addLocalBook(event) {
     event.preventDefault()
     if (!adminBook.title.trim()) return
@@ -703,6 +744,20 @@ function App() {
         progress={visibleProgress}
       />
     ),
+    store: (
+      <StorePage
+        account={account}
+        books={allBooks}
+        cartItems={cartItems}
+        onAddToCart={addToCart}
+        onCheckout={checkoutCart}
+        onDetail={openDetail}
+        onRead={openBook}
+        purchaseHistory={purchaseHistory}
+        query={query}
+        setQuery={setQuery}
+      />
+    ),
     discover: (
       <DiscoverPage
         books={filteredBooks}
@@ -719,6 +774,12 @@ function App() {
         topics={topics}
         viewCounts={viewCounts}
         viewerCounts={getViewerCounts(bookReaders)}
+      />
+    ),
+    promotions: (
+      <PromotionsPage
+        account={account}
+        onStore={() => navigateTo('store')}
       />
     ),
     detail: (
@@ -791,6 +852,7 @@ function App() {
         onProfileUpdate={updateAccountProfile}
         onRead={openBook}
         onResetPassword={resetAccountPassword}
+        purchaseHistory={purchaseHistory}
         progress={progress}
         readingDays={readingActivity[getAccountKey(account)] || []}
         readerTheme={readerTheme}

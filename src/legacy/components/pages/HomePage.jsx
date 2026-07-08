@@ -107,9 +107,14 @@ function HomePage({ books, favorites, onDetail, onFavorite, onRead, progress = {
             <p className="mono-eyebrow">Popular now</p>
             <h2>Hot books</h2>
           </div>
-          <button className="ghost-button" onClick={() => setPage('discover')} type="button">
-            View library
-          </button>
+          <div className="section-actions">
+            <button className="ghost-button" onClick={() => setPage('store')} type="button">
+              Open store
+            </button>
+            <button className="ghost-button" onClick={() => setPage('discover')} type="button">
+              View library
+            </button>
+          </div>
         </div>
         <BookGrid
           books={hotBooks}
@@ -120,6 +125,18 @@ function HomePage({ books, favorites, onDetail, onFavorite, onRead, progress = {
           viewCounts={viewCounts}
           viewerCounts={viewerCounts}
         />
+      </section>
+
+      <section className="promo-strip">
+        <div>
+          <p className="mono-eyebrow">VIP deal</p>
+          <h2>Buy more books with automatic coupons.</h2>
+          <p>VIP accounts receive discount vouchers and a visible VIP tag across the system.</p>
+        </div>
+        <button className="primary-button" onClick={() => setPage('promotions')} type="button">
+          <i className="bi bi-stars" />
+          View VIP offers
+        </button>
       </section>
 
       <section className="section-block">

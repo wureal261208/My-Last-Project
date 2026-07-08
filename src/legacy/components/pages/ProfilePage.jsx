@@ -12,6 +12,7 @@ function ProfilePage({
   fontScale,
   onProfileUpdate,
   onResetPassword,
+  purchaseHistory = [],
   readerTheme,
   setFontScale,
   setReaderTheme,
@@ -25,6 +26,7 @@ function ProfilePage({
         fontScale={fontScale}
         onProfileUpdate={onProfileUpdate}
         onResetPassword={onResetPassword}
+        purchaseHistory={purchaseHistory}
         readerTheme={readerTheme}
         setFontScale={setFontScale}
         setReaderTheme={setReaderTheme}
@@ -40,6 +42,7 @@ function ProfileSettings({
   fontScale,
   onProfileUpdate,
   onResetPassword,
+  purchaseHistory,
   readerTheme,
   setFontScale,
   setReaderTheme,
@@ -119,10 +122,41 @@ function ProfileSettings({
         <div className="settings-mini-profile">
           <span>{avatarPreview ? <img src={avatarPreview} alt="" /> : getInitials(displayName)}</span>
           <strong>{displayName || account.name}</strong>
+          <small className={account.accountType === 'vip' ? 'vip-badge' : 'normal-badge'}>
+            {account.accountType === 'vip' ? 'VIP' : 'Normal'}
+          </small>
         </div>
       </div>
 
       <div className="settings-layout">
+        <div className="account-settings-card account-status-card">
+          <SettingsHeading icon="bi-person-badge" kicker="Membership" title="Account status" />
+          <p className="settings-copy">
+            Current account type: <strong>{account.accountType === 'vip' ? 'VIP' : 'Normal'}</strong>
+          </p>
+          <p className="settings-copy">
+            {account.accountType === 'vip'
+              ? 'VIP coupons and tags are active for this account.'
+              : 'Normal accounts can buy and read books without VIP coupons.'}
+          </p>
+        </div>
+
+        <div className="account-settings-card purchase-history-card">
+          <SettingsHeading icon="bi-receipt" kicker="Orders" title="Purchase history" />
+          {purchaseHistory.length ? (
+            <div className="purchase-list">
+              {purchaseHistory.slice(0, 8).map((item) => (
+                <div className="purchase-row" key={`${item.id}-${item.purchasedAt}`}>
+                  <span>{item.title}</span>
+                  <small>{new Date(item.purchasedAt).toLocaleDateString('vi-VN')}</small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="settings-copy">No purchases yet. Buy books in the Store to build your library.</p>
+          )}
+        </div>
+
         <form className="account-settings-card profile-card-large" onSubmit={saveProfile}>
           <SettingsHeading icon="bi-person-gear" kicker="Profile" title="Identity" />
           <div className="avatar-editor">
