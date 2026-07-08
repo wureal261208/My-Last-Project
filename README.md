@@ -1,6 +1,6 @@
 # Lumen Books
 
-Fullstack ebook marketplace demo with Next.js 15, TypeScript, Tailwind CSS, Firebase Auth, Firestore, Storage, EPUB/PDF reader, admin dashboard and Gutenberg import script.
+Fullstack ebook marketplace demo with Next.js 15, TypeScript, Tailwind CSS, Firebase Auth, Firestore, Storage, EPUB/PDF reader, role dashboards and Gutenberg import script.
 
 ## Run locally
 

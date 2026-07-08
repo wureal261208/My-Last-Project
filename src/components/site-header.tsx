@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 
 const nav = [
   { href: "/catalog", label: "Catalog", icon: Search },
+  { href: "/dashboard", label: "Dashboard", icon: UserRound },
+  { href: "/co-op", label: "Co-op", icon: LayoutDashboard },
   { href: "/admin", label: "Admin", icon: LayoutDashboard },
   { href: "/cart", label: "Cart", icon: ShoppingCart },
   { href: "/profile", label: "Profile", icon: UserRound }

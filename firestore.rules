@@ -11,16 +11,24 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
-    function isCoop() {
+    function isCoopStaff() {
       return signedIn()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "co-op";
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "co-op-admin"
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "employee"
+        );
+    }
+
+    function isVip() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "vip";
     }
 
     match /books/{bookId} {
       allow read: if resource.data.status == "published" || isAdmin();
-      allow create: if isAdmin() || isCoop();
+      allow create: if isAdmin() || isCoopStaff();
       allow update, delete: if isAdmin()
-        || (isCoop() && resource.data.ownerId == request.auth.uid);
+        || (isCoopStaff() && resource.data.ownerId == request.auth.uid);
     }
 
     match /users/{uid} {

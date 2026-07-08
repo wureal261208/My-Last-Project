@@ -23,7 +23,7 @@ export default async function HomePage() {
                 Đọc, bán và quản lý sách điện tử trong một nền tảng.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
-                Lumen Books hỗ trợ EPUB/PDF, Firebase Auth, Firestore, Storage, dashboard admin và tài khoản co-op cho tác giả hoặc publisher.
+                Lumen Books hỗ trợ EPUB/PDF, Firebase Auth, Firestore, Storage, dashboard admin và workspace co-op cho publisher.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button asChild size="lg">
@@ -42,7 +42,7 @@ export default async function HomePage() {
               {[
                 { icon: LibraryBig, title: "75k+ metadata", text: "Sẵn sàng import từ Gutenberg CSV." },
                 { icon: BookMarked, title: "Reader đẹp", text: "Điều chỉnh font, theme, progress, bookmark." },
-                { icon: ShieldCheck, title: "Role-based", text: "User, admin, co-op với quyền riêng." }
+                { icon: ShieldCheck, title: "Role-based", text: "Admin, co-op, employee, VIP, normal, anonymous." }
               ].map((item) => (
                 <Card key={item.title} className="flex gap-4 p-5">
                   <item.icon className="mt-1 size-6 text-muted-foreground" />

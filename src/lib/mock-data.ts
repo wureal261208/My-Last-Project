@@ -51,14 +51,31 @@ export const featuredBooks: Book[] = [
 
 export const demoUsers: AppUser[] = [
   { uid: "admin-demo", email: "admin@lumen.vn", name: "Admin Demo", role: "admin", status: "active" },
-  { uid: "coop-demo", email: "author@lumen.vn", name: "Co-op Publisher", role: "co-op", status: "active" },
-  { uid: "user-demo", email: "reader@lumen.vn", name: "Bạn đọc", role: "user", status: "active" }
+  {
+    uid: "coop-demo",
+    email: "manager@lumen.vn",
+    name: "Co-op Manager",
+    role: "co-op-admin",
+    status: "active",
+    coopId: "coop-lumen"
+  },
+  {
+    uid: "employee-demo",
+    email: "employee@lumen.vn",
+    name: "Employee Demo",
+    role: "employee",
+    status: "active",
+    coopId: "coop-lumen"
+  },
+  { uid: "vip-demo", email: "vip@lumen.vn", name: "VIP Reader", role: "vip", status: "active" },
+  { uid: "normal-demo", email: "reader@lumen.vn", name: "Normal Reader", role: "normal", status: "active" },
+  { uid: "anonymous-demo", name: "Anonymous Guest", role: "anonymous", status: "active" }
 ];
 
 export const demoOrders: Order[] = [
   {
     id: "ord_1001",
-    userId: "user-demo",
+    userId: "vip-demo",
     items: [{ bookId: "premium-1", title: "Thiết kế thói quen đọc sâu", price: 79000 }],
     total: 79000,
     provider: "vnpay",

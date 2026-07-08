@@ -16,7 +16,7 @@ export async function register(email: string, password: string, name: string) {
     uid: res.user.uid,
     email,
     name,
-    role: "user",
+    role: "normal",
     status: "active",
     createdAt: serverTimestamp()
   });

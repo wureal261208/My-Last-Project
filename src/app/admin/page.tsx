@@ -11,7 +11,7 @@ export default function AdminPage() {
     { label: "Sách", value: featuredBooks.length, icon: BookOpen },
     { label: "Người dùng", value: demoUsers.length, icon: UsersRound },
     { label: "Doanh thu", value: `${revenue.toLocaleString("vi-VN")}đ`, icon: DollarSign },
-    { label: "Co-op", value: demoUsers.filter((user) => user.role === "co-op").length, icon: ShieldCheck }
+    { label: "Co-op team", value: demoUsers.filter((user) => user.role === "co-op-admin" || user.role === "employee").length, icon: ShieldCheck }
   ];
 
   return (
@@ -21,7 +21,7 @@ export default function AdminPage() {
         <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <h1 className="text-3xl font-semibold">Admin Dashboard</h1>
-            <p className="mt-2 text-muted-foreground">Quản lý sách, user, co-op, đơn hàng và doanh thu.</p>
+            <p className="mt-2 text-muted-foreground">Quản lý sách, user, co-op workspace, đơn hàng và doanh thu.</p>
           </div>
           <Button asChild>
             <Link href="/admin/books">Quản lý sách</Link>
