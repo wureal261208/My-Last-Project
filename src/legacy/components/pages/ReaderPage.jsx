@@ -1,0 +1,907 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import ReaderCommentsPanel from '../reader/ReaderCommentsPanel'
+import ReaderControls from '../reader/ReaderControls'
+import ReaderFrame from '../reader/ReaderFrame'
+import { NextChapterModal, ReaderMemberModal } from '../reader/ReaderModals'
+import ReaderTopbar from '../reader/ReaderTopbar'
+import { getReaderUrl } from '../../utils/bookUtils'
+import { getBookChapters, getChapterIndex, getTotalPages } from '../../utils/chapterUtils'
+
+const GUEST_CHAPTER_LIMIT = 3
+const READER_PAGE_TARGET_LENGTH = 1800
+const MAX_GENERATED_READER_PAGES = 260
+const MAX_DETECTED_CHAPTER_NUMBER = 250
+
+function ReaderPage({
+  account,
+  book,
+  canPersistReaderState = false,
+  checkpoints,
+  comments = [],
+  favorites,
+  fontScale,
+  onBack,
+  onComment,
+  onDiscover,
+  onFavorite,
+  onHome,
+  onLoginRequired,
+  readerTheme,
+  startPage,
+  setCheckpoints,
+  setFontScale,
+  setProgress,
+  setReaderTheme,
+}) {
+  const [commentText, setCommentText] = useState('')
+  const [readerText, setReaderText] = useState('')
+  const [readerStatus, setReaderStatus] = useState('idle')
+  const [readerMessage, setReaderMessage] = useState('')
+  const [pendingChapterIndex, setPendingChapterIndex] = useState(null)
+  const [showMemberPrompt, setShowMemberPrompt] = useState(false)
+  const [commentSort, setCommentSort] = useState('newest')
+  const activeBook = useMemo(() => book || { id: 'empty', title: '', formats: {} }, [book])
+  const readerUrl = getReaderUrl(activeBook)
+  const readerTextUrl = getReaderTextUrl(activeBook)
+  const metadataTotalPages = useMemo(() => getTotalPages(activeBook), [activeBook])
+  const metadataChapters = useMemo(() => getBookChapters(activeBook, metadataTotalPages), [activeBook, metadataTotalPages])
+  const contentChapters = useMemo(
+    () => getContentChapters(activeBook, readerText, metadataTotalPages),
+    [activeBook, readerText, metadataTotalPages],
+  )
+  const chapters = contentChapters.length > 1 ? contentChapters : metadataChapters
+  const totalPages = useMemo(() => getChapterPageTotal(chapters) || metadataTotalPages, [chapters, metadataTotalPages])
+  const readerPages = useMemo(() => buildReaderPages(readerText, chapters, totalPages), [chapters, readerText, totalPages])
+  const checkpointKey = useMemo(() => getCheckpointKey(account, activeBook), [account, activeBook])
+  const isGuest = account?.role === 'guest'
+  const savedCheckpoint = isGuest ? null : checkpoints[checkpointKey]
+  const [requestedPage, setCurrentPage] = useState(() => clampPage(startPage || savedCheckpoint?.page || 1, totalPages))
+  const currentPage = clampPage(requestedPage, totalPages)
+  const currentChapterIndex = getChapterIndex(currentPage, chapters)
+  const currentChapter = chapters[currentChapterIndex]
+  const currentChapterNumber = currentChapterIndex + 1
+  const chapterPage = currentPage - currentChapter.startPage + 1
+  const hasReachedGuestLimit = isGuest && currentChapterNumber > GUEST_CHAPTER_LIMIT
+  const isFinished = currentPage >= totalPages
+  const progressValue = Math.round((currentPage / totalPages) * 100)
+  const chapterProgressValue = Math.round((chapterPage / currentChapter.pages) * 100)
+  const currentReaderText = readerPages[currentPage - 1] || ''
+  const currentReaderParagraphs = useMemo(() => getDisplayParagraphs(currentReaderText), [currentReaderText])
+  const chapterStrip = useMemo(() => getChapterStrip(chapters, currentChapterIndex), [chapters, currentChapterIndex])
+  const sortedComments = [...comments].sort((first, second) => {
+    const firstTime = new Date(first.createdAt).getTime()
+    const secondTime = new Date(second.createdAt).getTime()
+
+    return commentSort === 'newest' ? secondTime - firstTime : firstTime - secondTime
+  })
+
+  const saveCheckpoint = useCallback(
+    (page = currentPage) => {
+      if (!book || !canPersistReaderState || isGuest) return
+
+      const safePage = clampPage(page, totalPages)
+      const chapterIndex = getChapterIndex(safePage, chapters)
+      const checkpointChapter = chapters[chapterIndex]
+
+      setCheckpoints((current) => ({
+        ...current,
+        [checkpointKey]: {
+          page: safePage,
+          chapter: checkpointChapter.number || chapterIndex + 1,
+          chapterPage: safePage - checkpointChapter.startPage + 1,
+          totalPages,
+          updatedAt: new Date().toISOString(),
+        },
+      }))
+      setProgress((current) => ({ ...current, [activeBook.id]: Math.min(100, Math.round((safePage / totalPages) * 100)) }))
+    },
+    [activeBook.id, book, canPersistReaderState, chapters, checkpointKey, currentPage, isGuest, setCheckpoints, setProgress, totalPages],
+  )
+
+  useEffect(() => {
+    let isCurrent = true
+    const nextPage = clampPage(startPage || savedCheckpoint?.page || 1, totalPages)
+    queueMicrotask(() => {
+      if (!isCurrent) return
+      setCurrentPage((current) => (current === nextPage ? current : nextPage))
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [activeBook.id, savedCheckpoint?.page, startPage, totalPages])
+
+  useEffect(() => {
+    if (!book) return
+    saveCheckpoint(currentPage)
+  }, [book, currentPage, saveCheckpoint])
+
+  useEffect(() => {
+    let isCurrentRequest = true
+    const commitReaderState = (text, status, message = '') => {
+      queueMicrotask(() => {
+        if (!isCurrentRequest) return
+
+        setReaderText(text)
+        setReaderStatus(status)
+        setReaderMessage(message)
+      })
+    }
+
+    if (!book) {
+      commitReaderState('', 'idle')
+      return () => {
+        isCurrentRequest = false
+      }
+    }
+
+    const inlineText = getInlineBookText(activeBook)
+    const hasChapterContent = metadataChapters.some((chapter) => chapter.content)
+
+    if (inlineText) {
+      commitReaderState(cleanBookText(inlineText), 'ready')
+      return () => {
+        isCurrentRequest = false
+      }
+    }
+
+    if (hasChapterContent) {
+      commitReaderState('', 'ready')
+      return () => {
+        isCurrentRequest = false
+      }
+    }
+
+    if (!readerTextUrl) {
+      commitReaderState('', 'missing', 'This book does not include readable text for chapter pages.')
+      return () => {
+        isCurrentRequest = false
+      }
+    }
+
+    async function loadReaderText() {
+      commitReaderState('', 'loading')
+
+      try {
+        const response = await fetch(getFetchableReaderUrl(readerTextUrl))
+        if (!response.ok) throw new Error(`Reader source returned ${response.status}`)
+
+        const source = await response.text()
+        const text = cleanBookText(isHtmlReaderSource(readerTextUrl, response) ? htmlToText(source) : source)
+
+        if (!isCurrentRequest) return
+
+        commitReaderState(text, text ? 'ready' : 'missing', text ? '' : 'This reader source did not include readable text.')
+      } catch {
+        if (!isCurrentRequest) return
+
+        commitReaderState('', 'error', 'Could not load text for sliced chapter pages. Open the original reader instead.')
+      }
+    }
+
+    loadReaderText()
+
+    return () => {
+      isCurrentRequest = false
+    }
+  }, [activeBook, book, metadataChapters, readerTextUrl])
+
+  useEffect(() => {
+    if (!book || isGuest) return
+
+    const handleBeforeUnload = () => saveCheckpoint(currentPage)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      saveCheckpoint(currentPage)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [book, currentPage, isGuest, saveCheckpoint])
+
+  if (!book) return <div className="empty-state">No book selected.</div>
+
+  function handlePageChange(nextPage) {
+    const safePage = Number(nextPage)
+    setCurrentPage(clampPage(safePage, totalPages))
+  }
+
+  function goToChapter(chapterIndex) {
+    const chapter = chapters[chapterIndex]
+    if (!chapter) return
+
+    if (isGuest && chapterIndex + 1 > GUEST_CHAPTER_LIMIT) {
+      setShowMemberPrompt(true)
+      return
+    }
+
+    setCurrentPage(chapter.startPage)
+  }
+
+  function movePage(direction) {
+    const nextChapterIndex = currentChapterIndex + 1
+
+    if (direction > 0 && chapterPage >= currentChapter.pages && nextChapterIndex < chapters.length) {
+      if (isGuest && currentChapterNumber >= GUEST_CHAPTER_LIMIT) {
+        setShowMemberPrompt(true)
+        return
+      }
+
+      setPendingChapterIndex(nextChapterIndex)
+      return
+    }
+
+    handlePageChange(currentPage + direction)
+  }
+
+  function continueToPendingChapter() {
+    if (pendingChapterIndex === null) return
+
+    const chapter = chapters[pendingChapterIndex]
+    setPendingChapterIndex(null)
+    if (chapter) setCurrentPage(chapter.startPage)
+  }
+
+  function changeFontScale(direction) {
+    setFontScale((current) => clampNumber(current + direction, 15, 24))
+  }
+
+  function markChapterDone() {
+    const finalChapterPage = currentChapter.startPage + currentChapter.pages - 1
+    handlePageChange(finalChapterPage)
+  }
+
+  function handleExit() {
+    saveCheckpoint(currentPage)
+    onBack()
+  }
+
+  function handleHome() {
+    saveCheckpoint(currentPage)
+    onHome()
+  }
+
+  function handleDiscover() {
+    saveCheckpoint(currentPage)
+    onDiscover()
+  }
+
+  function submitReaderComment() {
+    const text = commentText.trim()
+    if (!text) return
+
+    onComment(activeBook.id, text)
+    setCommentText('')
+  }
+
+  return (
+    <section className={`reader-page reader-${readerTheme}`}>
+      <ReaderTopbar
+        activeBook={activeBook}
+        favorites={favorites}
+        onBack={handleExit}
+        onDiscover={handleDiscover}
+        onFavorite={onFavorite}
+        onHome={handleHome}
+      />
+
+      <ReaderControls
+        chapterPage={chapterPage}
+        chapterProgressValue={chapterProgressValue}
+        currentChapter={currentChapter}
+        fontScale={fontScale}
+        guestChapterLimit={GUEST_CHAPTER_LIMIT}
+        isFinished={isFinished}
+        isGuest={isGuest}
+        onChangeFontScale={changeFontScale}
+        onMarkChapterDone={markChapterDone}
+        onReaderTheme={setReaderTheme}
+        progressValue={progressValue}
+        readerTheme={readerTheme}
+      />
+
+      <div className="reader-main">
+        <ReaderFrame
+          activeBook={activeBook}
+          chapterPage={chapterPage}
+          chapterStrip={chapterStrip}
+          currentChapter={currentChapter}
+          currentChapterIndex={currentChapterIndex}
+          currentPage={currentPage}
+          currentReaderParagraphs={currentReaderParagraphs}
+          fontScale={fontScale}
+          guestChapterLimit={GUEST_CHAPTER_LIMIT}
+          hasReachedGuestLimit={hasReachedGuestLimit}
+          isGuest={isGuest}
+          onChapter={goToChapter}
+          onLoginRequired={onLoginRequired}
+          onMovePage={movePage}
+          readerMessage={readerMessage}
+          readerStatus={readerStatus}
+          readerUrl={readerUrl}
+          totalPages={totalPages}
+        />
+        <ReaderCommentsPanel
+          account={account}
+          commentSort={commentSort}
+          commentText={commentText}
+          comments={sortedComments}
+          onCommentSort={setCommentSort}
+          onCommentText={setCommentText}
+          onSubmitComment={submitReaderComment}
+        />
+      </div>
+      {pendingChapterIndex !== null && (
+        <NextChapterModal
+          currentChapter={currentChapter}
+          nextChapter={chapters[pendingChapterIndex]}
+          onClose={() => setPendingChapterIndex(null)}
+          onContinue={continueToPendingChapter}
+        />
+      )}
+      {showMemberPrompt && (
+        <ReaderMemberModal
+          onClose={() => setShowMemberPrompt(false)}
+          onLoginRequired={onLoginRequired}
+        />
+      )}
+    </section>
+  )
+}
+
+function getCheckpointKey(account, book) {
+  const accountKey = account?.role === 'guest' ? 'guest' : account?.id || account?.email || 'user'
+  return `${accountKey}:${book.id}`
+}
+
+function getReaderTextUrl(book) {
+  const formats = book.formats || {}
+
+  return (
+    getFormatUrl(formats, 'text/plain') ||
+    getProjectGutenbergTextUrl(book) ||
+    getFormatUrl(formats, 'text/html') ||
+    book.readerTextUrl ||
+    book.reader_text_url ||
+    book.readerUrl ||
+    ''
+  )
+}
+
+function getChapterStrip(chapters, currentIndex) {
+  return [
+    { id: 'previous-chapter', index: currentIndex - 1, position: 'Previous' },
+    { id: 'current-chapter', index: currentIndex, position: 'Current' },
+    { id: 'next-chapter', index: currentIndex + 1, position: 'Next' },
+  ]
+    .filter((item) => item.index >= 0 && item.index < chapters.length)
+    .map((item) => ({
+      ...item,
+      chapter: chapters[item.index],
+      id: `${item.id}-${chapters[item.index].id}`,
+    }))
+}
+
+function getFormatUrl(formats, mimePrefix) {
+  return Object.entries(formats).find(([mimeType, url]) => mimeType.startsWith(mimePrefix) && url)?.[1] || ''
+}
+
+function getProjectGutenbergTextUrl(book) {
+  const gutenbergId = getProjectGutenbergId(book)
+  return gutenbergId ? `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt` : ''
+}
+
+function getProjectGutenbergId(book) {
+  const directId = Number(book.id)
+  if (Number.isInteger(directId) && directId > 0) return directId
+
+  const sourceUrls = [book.readerUrl, ...(Object.values(book.formats || {}))]
+  const urlMatch = sourceUrls
+    .filter(Boolean)
+    .map((url) => String(url).match(/gutenberg\.org\/(?:ebooks|files|cache\/epub)\/(\d+)/i)?.[1])
+    .find(Boolean)
+
+  return urlMatch ? Number(urlMatch) : null
+}
+
+function getInlineBookText(book) {
+  return [book.readerText, book.reader_text, book.content, book.text, book.body].find(
+    (value) => typeof value === 'string' && value.trim(),
+  ) || ''
+}
+
+function getFetchableReaderUrl(url) {
+  try {
+    const parsedUrl = new URL(url)
+
+    if (parsedUrl.hostname.endsWith('gutenberg.org')) {
+      const cacheTextMatch = parsedUrl.pathname.match(/^\/cache\/epub\/(\d+)\/pg\d+\.txt$/i)
+      if (cacheTextMatch) return `/api/reader-text/${cacheTextMatch[1]}/plain`
+
+      const ebookTextMatch = parsedUrl.pathname.match(/^\/ebooks\/(\d+)\.txt/i)
+      if (ebookTextMatch) return `/api/reader-text/${ebookTextMatch[1]}/plain`
+
+      const fileMatch = parsedUrl.pathname.match(/^\/files\/(\d+)\/([^/]+)$/i)
+      if (fileMatch) return `/api/reader-text/${fileMatch[1]}/file/${fileMatch[2]}`
+
+      return `/api/reader-text${parsedUrl.pathname}${parsedUrl.search}`
+    }
+  } catch {
+    return url
+  }
+
+  return url
+}
+
+function isHtmlReaderSource(url, response) {
+  const contentType = response.headers.get('content-type') || ''
+  return contentType.includes('text/html') || /\.html?($|\?)/i.test(url)
+}
+
+function htmlToText(source) {
+  const document = new DOMParser().parseFromString(source, 'text/html')
+  document.querySelectorAll('script, style, nav, header, footer').forEach((node) => node.remove())
+
+  return document.body?.textContent || ''
+}
+
+function cleanBookText(text) {
+  const normalizedText = text
+    .replace(/\r/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+
+  const withoutHeader = sliceAfterMarker(normalizedText, [
+    '*** START OF THE PROJECT GUTENBERG EBOOK',
+    '*** START OF THIS PROJECT GUTENBERG EBOOK',
+    'START OF THE PROJECT GUTENBERG EBOOK',
+    'START OF THIS PROJECT GUTENBERG EBOOK',
+  ])
+  const withoutFooter = sliceBeforeMarker(withoutHeader, [
+    '*** END OF THE PROJECT GUTENBERG EBOOK',
+    '*** END OF THIS PROJECT GUTENBERG EBOOK',
+    'END OF THE PROJECT GUTENBERG EBOOK',
+    'END OF THIS PROJECT GUTENBERG EBOOK',
+  ])
+
+  return withoutFooter
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+function buildReaderPages(text, chapters, totalPages) {
+  const chapterContent = chapters.some((chapter) => chapter.content)
+
+  if (chapterContent) {
+    return normalizePageCount(
+      chapters.flatMap((chapter) => splitTextIntoPages(cleanBookText(chapter.content || ''), chapter.pages)),
+      totalPages,
+    )
+  }
+
+  if (!text) return []
+
+  const chapterBodies = splitTextByChapterHeadings(text)
+
+  if (chapterBodies.length >= chapters.length) {
+    const groupedChapters = groupEntries(chapterBodies.map((chapter) => chapter.content), chapters.length)
+
+    return normalizePageCount(
+      chapters.flatMap((chapter, index) => splitTextIntoPages(groupedChapters[index] || '', chapter.pages)),
+      totalPages,
+    )
+  }
+
+  return splitTextIntoPages(text, totalPages)
+}
+
+function getContentChapters(book, text, totalPages) {
+  if (!text) return []
+
+  const detectedChapters = splitTextByChapterHeadings(text)
+  if (detectedChapters.length < 2) return []
+
+  const contentTotalPages = estimateContentPageCount(text, totalPages, detectedChapters.length)
+  const chapterSections =
+    detectedChapters.length > contentTotalPages ? groupChapterSections(detectedChapters, contentTotalPages) : detectedChapters
+  const pageCounts = distributePagesByContent(chapterSections, contentTotalPages)
+  let startPage = 1
+
+  return chapterSections.map((chapter, index) => {
+    const pages = pageCounts[index]
+    const number = chapter.number || index + 1
+    const label = chapter.label || `Chapter ${number}`
+    const normalizedChapter = {
+      id: `${book.id || 'book'}-content-chapter-${index + 1}`,
+      label,
+      number,
+      title: chapter.title || label,
+      startPage,
+      pages,
+      content: chapter.content,
+    }
+
+    startPage += pages
+    return normalizedChapter
+  })
+}
+
+function splitTextByChapterHeadings(text) {
+  const candidates = trimLeadingTableOfContents(getChapterHeadingCandidates(text))
+
+  if (candidates.length < 2) return []
+
+  const chapters = candidates.map((candidate, index) => {
+    const end = candidates[index + 1]?.index ?? text.length
+    const prefix = ''
+    const body = stripLeadingChapterHeading(text.slice(candidate.index, end).trim())
+
+    return {
+      label: candidate.label,
+      number: candidate.number,
+      title: candidate.title,
+      content: [prefix, body].filter(Boolean).join('\n\n'),
+    }
+  })
+
+  return chapters.filter((chapter) => chapter.content.length > 80)
+}
+
+function stripLeadingChapterHeading(content) {
+  const lines = content.split('\n')
+  const firstLine = lines[0]?.trim() || ''
+  if (!firstLine) return content
+
+  if (parseInlineChapterHeading(firstLine) || parseStandaloneChapterMarker(firstLine)) {
+    return lines.slice(1).join('\n').trim()
+  }
+
+  return content
+}
+
+function getChapterHeadingCandidates(text) {
+  const lines = getIndexedLines(text)
+  const candidates = []
+
+  lines.forEach((line, index) => {
+    const inlineHeading = parseInlineChapterHeading(line.text)
+    if (inlineHeading) {
+      candidates.push({ ...inlineHeading, index: line.index })
+      return
+    }
+
+    const marker = parseStandaloneChapterMarker(line.text)
+    if (!marker) return
+
+    const nextLine = findNextNonEmptyLine(lines, index + 1)
+    if (!nextLine || !isLikelyStandaloneChapterTitle(nextLine.text)) return
+
+    const number = parseChapterNumber(marker)
+    candidates.push({
+      index: line.index,
+      kind: 'standalone',
+      label: `Chapter ${formatChapterMarker(marker)}`,
+      number,
+      title: cleanHeadingTitle(nextLine.text.trim()) || `Chapter ${number || marker}`,
+    })
+  })
+
+  const chapterCandidates = candidates.filter((candidate) => candidate.headingType === 'chapter')
+  if (chapterCandidates.length >= 2) return chapterCandidates
+
+  const actCandidates = candidates.filter((candidate) => candidate.headingType === 'act')
+  if (actCandidates.length >= 2) return actCandidates
+
+  const namedCandidates = candidates.filter((candidate) => candidate.kind === 'named')
+  if (namedCandidates.length >= 2) return namedCandidates
+
+  const numberedCandidates = candidates.filter((candidate) => candidate.kind === 'numbered')
+  return numberedCandidates.length >= 2 ? numberedCandidates : candidates
+}
+
+function getIndexedLines(text) {
+  let index = 0
+
+  return text.split('\n').map((line) => {
+    const indexedLine = { index, text: line }
+    index += line.length + 1
+    return indexedLine
+  })
+}
+
+function parseInlineChapterHeading(line) {
+  const heading = line.trim()
+  if (!isReasonableHeadingLength(heading)) return null
+
+  const namedHeading = heading.match(/^(chapter|letter|book|volume|act)\s+([ivxlcdm]+|\d+)\b[).: -]*(.*)$/i)
+  if (namedHeading) {
+    const number = parseChapterNumber(namedHeading[2])
+    if (!number) return null
+
+    const label = `${capitalizeWord(namedHeading[1])} ${formatChapterMarker(namedHeading[2])}`
+    const title = cleanHeadingTitle(namedHeading[3]) || label
+
+    return { headingType: namedHeading[1].toLowerCase(), kind: 'named', label, number, title }
+  }
+
+  const numberedHeading = heading.match(/^([ivxlcdm]+|\d+)[.)]\s+(.+)$/i) || heading.match(/^([ivxlcdm]+|\d+)\s[-:]\s(.+)$/i)
+  if (!numberedHeading || !isLikelyInlineChapterTitle(numberedHeading[2])) return null
+  const number = parseChapterNumber(numberedHeading[1])
+  if (!number) return null
+
+  return {
+    kind: 'numbered',
+    label: `Chapter ${formatChapterMarker(numberedHeading[1])}`,
+    number,
+    title: cleanHeadingTitle(numberedHeading[2]),
+  }
+}
+
+function parseStandaloneChapterMarker(line) {
+  const marker = line.trim().match(/^([ivxlcdm]+|\d+)[.)]?$/i)?.[1]
+  return marker && parseChapterNumber(marker) ? marker : ''
+}
+
+function parseChapterNumber(value) {
+  const number = /^\d+$/.test(value) ? Number(value) : romanToNumber(value)
+  return number && number <= MAX_DETECTED_CHAPTER_NUMBER ? number : null
+}
+
+function romanToNumber(value) {
+  const romanValues = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 }
+  const letters = value.toLowerCase()
+  let total = 0
+
+  for (let index = 0; index < letters.length; index += 1) {
+    const current = romanValues[letters[index]]
+    const next = romanValues[letters[index + 1]] || 0
+    if (!current) return null
+    total += current < next ? -current : current
+  }
+
+  return total || null
+}
+
+function findNextNonEmptyLine(lines, startIndex) {
+  return lines.slice(startIndex).find((line) => line.text.trim())
+}
+
+function isReasonableHeadingLength(heading) {
+  return heading.length >= 1 && heading.length <= 110
+}
+
+function isLikelyInlineChapterTitle(title) {
+  const cleanTitle = cleanHeadingTitle(title)
+  if (!cleanTitle || cleanTitle.length < 4 || cleanTitle.length > 100) return false
+  if (/[.!?;:,]$/.test(cleanTitle) && cleanTitle.split(/\s+/).length > 8) return false
+
+  return true
+}
+
+function isLikelyStandaloneChapterTitle(title) {
+  const cleanTitle = cleanHeadingTitle(title)
+  if (!cleanTitle || cleanTitle.length < 4 || cleanTitle.length > 100) return false
+  if (/[.!?,;:]$/.test(cleanTitle)) return false
+
+  const letters = cleanTitle.replace(/[^a-z]/gi, '')
+  if (letters.length < 4) return false
+
+  const uppercaseLetters = letters.replace(/[^A-Z]/g, '').length
+  const uppercaseRatio = uppercaseLetters / letters.length
+
+  return uppercaseRatio > 0.58 || /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,10}$/.test(cleanTitle)
+}
+
+function trimLeadingTableOfContents(candidates) {
+  const restartIndexes = candidates
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate, index }) => index > 0 && candidate.number === 1 && (candidates[index - 1].number || 0) > 1)
+    .map(({ index }) => index)
+
+  const restartIndex = restartIndexes.find(
+    (index) => candidates.length - index >= 2 && isLikelyTableOfContentsBeforeRestart(candidates, index),
+  )
+  return restartIndex ? candidates.slice(restartIndex) : candidates
+}
+
+function isLikelyTableOfContentsBeforeRestart(candidates, restartIndex) {
+  const leadingCandidates = candidates.slice(0, restartIndex)
+  if (leadingCandidates.length < 3) return false
+
+  const gaps = leadingCandidates
+    .slice(0, -1)
+    .map((candidate, index) => leadingCandidates[index + 1].index - candidate.index)
+  const denseGaps = gaps.filter((gap) => gap <= 320).length
+  const denseRatio = gaps.length ? denseGaps / gaps.length : 0
+  const leadingSpan = leadingCandidates[leadingCandidates.length - 1].index - leadingCandidates[0].index
+
+  return denseRatio >= 0.65 && leadingSpan <= leadingCandidates.length * 420
+}
+
+function cleanHeadingTitle(title = '') {
+  const cleanedTitle = title
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s\])}.'"“”‘’_:;-]+/, '')
+    .replace(/[\s[({.'"“”‘’_:;-]+$/, '')
+    .trim()
+
+  return /[a-z0-9]/i.test(cleanedTitle) ? cleanedTitle : ''
+}
+
+function capitalizeWord(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+}
+
+function formatChapterMarker(marker) {
+  return /^\d+$/.test(marker) ? String(Number(marker)) : marker.toUpperCase()
+}
+
+function estimateContentPageCount(text, fallbackPages, chapterCount) {
+  const estimatedPages = Math.ceil(text.length / READER_PAGE_TARGET_LENGTH)
+  const minimumPages = Math.max(1, chapterCount)
+  const preferredPages = Math.max(minimumPages, estimatedPages)
+
+  return Math.min(MAX_GENERATED_READER_PAGES, Math.max(minimumPages, preferredPages || fallbackPages))
+}
+
+function getChapterPageTotal(chapters) {
+  return chapters.reduce((total, chapter) => total + Math.max(0, chapter.pages || 0), 0)
+}
+
+function groupChapterSections(sections, targetCount) {
+  return Array.from({ length: targetCount }, (_, index) => {
+    const start = Math.floor((index * sections.length) / targetCount)
+    const end = Math.floor(((index + 1) * sections.length) / targetCount)
+    const group = sections.slice(start, Math.max(start + 1, end))
+    const firstChapter = group[0]
+
+    return {
+      number: firstChapter.number || index + 1,
+      title: firstChapter.title,
+      content: group.map((chapter) => chapter.content).join('\n\n'),
+    }
+  })
+}
+
+function distributePagesByContent(chapters, totalPages) {
+  const chapterCount = Math.max(1, Math.min(chapters.length, totalPages))
+  const availablePages = Math.max(0, totalPages - chapterCount)
+  const totalLength = chapters.reduce((total, chapter) => total + Math.max(1, chapter.content.length), 0)
+  const weightedPages = chapters.map((chapter) => {
+    const weight = Math.max(1, chapter.content.length) / totalLength
+    const exactExtraPages = weight * availablePages
+
+    return {
+      pages: 1 + Math.floor(exactExtraPages),
+      remainder: exactExtraPages % 1,
+    }
+  })
+
+  let assignedPages = weightedPages.reduce((total, chapter) => total + chapter.pages, 0)
+  weightedPages
+    .map((chapter, index) => ({ ...chapter, index }))
+    .sort((first, second) => second.remainder - first.remainder)
+    .forEach((chapter) => {
+      if (assignedPages >= totalPages) return
+      weightedPages[chapter.index].pages += 1
+      assignedPages += 1
+    })
+
+  return weightedPages.map((chapter) => chapter.pages)
+}
+
+function groupEntries(entries, targetCount) {
+  const groups = Array.from({ length: targetCount }, () => [])
+
+  entries.forEach((entry, index) => {
+    const groupIndex = Math.min(targetCount - 1, Math.floor((index * targetCount) / entries.length))
+    groups[groupIndex].push(entry)
+  })
+
+  return groups.map((group) => group.join('\n\n'))
+}
+
+function splitTextIntoPages(text, pageCount) {
+  const cleanText = text.replace(/\n{3,}/g, '\n\n').trim()
+  const safePageCount = Math.max(1, pageCount)
+  if (!cleanText) return Array.from({ length: safePageCount }, () => '')
+
+  const targetLength = Math.max(360, Math.ceil(cleanText.length / safePageCount))
+  const paragraphs = cleanText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .flatMap((paragraph) => splitLongParagraph(paragraph, targetLength))
+  const pages = []
+  let currentPageText = ''
+
+  paragraphs.forEach((paragraph) => {
+    const nextPageText = [currentPageText, paragraph].filter(Boolean).join('\n\n')
+
+    if (currentPageText && nextPageText.length > targetLength && pages.length < safePageCount - 1) {
+      pages.push(currentPageText)
+      currentPageText = paragraph
+      return
+    }
+
+    currentPageText = nextPageText
+  })
+
+  if (currentPageText || !pages.length) pages.push(currentPageText)
+
+  return normalizePageCount(pages, safePageCount)
+}
+
+function splitLongParagraph(paragraph, targetLength) {
+  if (paragraph.length <= targetLength * 1.35) return [paragraph]
+
+  const chunks = []
+  const words = paragraph.split(/\s+/)
+  let chunk = ''
+
+  words.forEach((word) => {
+    const nextChunk = [chunk, word].filter(Boolean).join(' ')
+
+    if (chunk && nextChunk.length > targetLength) {
+      chunks.push(chunk)
+      chunk = word
+      return
+    }
+
+    chunk = nextChunk
+  })
+
+  if (chunk) chunks.push(chunk)
+
+  return chunks
+}
+
+function normalizePageCount(pages, pageCount) {
+  const safePages = pages.slice(0, pageCount)
+
+  if (pages.length > pageCount) {
+    safePages[pageCount - 1] = [safePages[pageCount - 1], ...pages.slice(pageCount)].filter(Boolean).join('\n\n')
+  }
+
+  while (safePages.length < pageCount) {
+    safePages.push('')
+  }
+
+  return safePages
+}
+
+function getDisplayParagraphs(text) {
+  return text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
+}
+
+function sliceAfterMarker(text, markers) {
+  const markerIndex = findMarkerIndex(text, markers)
+  if (markerIndex < 0) return text
+
+  const nextLineIndex = text.indexOf('\n', markerIndex)
+  return nextLineIndex >= 0 ? text.slice(nextLineIndex + 1) : text.slice(markerIndex)
+}
+
+function sliceBeforeMarker(text, markers) {
+  const markerIndex = findMarkerIndex(text, markers)
+  return markerIndex >= 0 ? text.slice(0, markerIndex) : text
+}
+
+function findMarkerIndex(text, markers) {
+  const lowerText = text.toLowerCase()
+  const indexes = markers
+    .map((marker) => lowerText.indexOf(marker.toLowerCase()))
+    .filter((index) => index >= 0)
+
+  return indexes.length ? Math.min(...indexes) : -1
+}
+
+function clampPage(page, totalPages) {
+  return Math.min(totalPages, Math.max(1, Number(page) || 1))
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value) || min))
+}
+
+export default ReaderPage
