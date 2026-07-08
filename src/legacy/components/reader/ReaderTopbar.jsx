@@ -1,4 +1,4 @@
-import logo from '../../assets/logo.jpg'
+const logo = '/logo.jpg'
 
 function ReaderTopbar({ activeBook, favorites, onBack, onDiscover, onFavorite, onHome }) {
   return (

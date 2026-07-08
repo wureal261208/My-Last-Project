@@ -1,6 +1,7 @@
 import { getInitials } from '../../utils/bookUtils'
-import logo from '../../assets/logo.jpg'
 import { useNavigation } from '../../context/navigation'
+
+const logo = '/logo.jpg'
 
 const navItems = [
   { id: 'home', label: 'Home', icon: 'bi-house' },

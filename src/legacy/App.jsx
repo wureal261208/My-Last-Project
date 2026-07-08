@@ -29,7 +29,8 @@ import {
   subscribeUserData,
   userDataDefaults,
 } from './utils/firebaseData'
-import logo from './assets/logo.jpg'
+
+const logo = '/logo.jpg'
 
 const AdminPage = lazy(() => import('./components/pages/AdminPage'))
 const BookDetailPage = lazy(() => import('./components/pages/BookDetailPage'))

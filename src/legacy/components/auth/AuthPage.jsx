@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import logo from '../../assets/logo.jpg'
+const logo = '/logo.jpg'
 
 function Icon({ name }) {
   const icons = {
