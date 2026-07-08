@@ -117,7 +117,7 @@ function AdminPage({
         </button>
         <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
           <i className="bi bi-person-plus" />
-          Deputy Dev
+          Team
         </button>
       </div>
 
@@ -354,22 +354,22 @@ function AdminPage({
           <div className="section-heading">
             <div>
               <p className="mono-eyebrow">Team access</p>
-              <h2>Deputy dev</h2>
+              <h2>Co-op manager / employee</h2>
             </div>
-            <span>Admin accounts that can maintain the main site</span>
+            <span>Managers can maintain employees. Employees can help maintain books.</span>
           </div>
 
           <form className="admin-form compact-form" onSubmit={addStaff}>
             <p className="form-note">
-              Staff created here can login with their email and default password <strong>Admin123</strong> to access Admin.
+              Staff created here can login with their email and default password <strong>Admin123</strong>. Later, Cloud Functions should set matching Firebase Custom Claims.
             </p>
-            <label>Name<input name="name" placeholder="Deputy name" /></label>
-            <label>Email<input name="email" placeholder="deputy@bookworm.com" type="email" /></label>
+            <label>Name<input name="name" placeholder="Manager or employee name" /></label>
+            <label>Email<input name="email" placeholder="team@bookworm.com" type="email" /></label>
             <label>
               Role
-              <select name="role" defaultValue="coop">
-                <option value="deputy-dev">Deputy dev</option>
-                <option value="coop">Coop</option>
+              <select name="role" defaultValue="employee">
+                <option value="manager">Co-op Admin / Manager</option>
+                <option value="employee">Employee</option>
               </select>
             </label>
             <button className="primary-button" type="submit">Create account</button>
@@ -377,7 +377,7 @@ function AdminPage({
 
           <div className="admin-two-col">
             <section className="admin-table staff-table">
-              <h2>Deputy dev / coop accounts</h2>
+              <h2>Manager / employee accounts</h2>
               {staff.length ? (
                 staff.map((member) => (
                   <div className="table-row" key={member.email}>
@@ -387,7 +387,7 @@ function AdminPage({
                   </div>
                 ))
               ) : (
-                <p>No deputy or coop accounts yet.</p>
+                <p>No manager or employee accounts yet.</p>
               )}
             </section>
 

@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() ? request.auth.token.role : "anonymous";
+    }
+
+    function accountType() {
+      return signedIn() ? request.auth.token.accountType : "normal";
+    }
+
+    function isAdmin() {
+      return role() == "admin";
+    }
+
+    function isManager() {
+      return role() == "manager";
+    }
+
+    function isEmployee() {
+      return role() == "employee";
+    }
+
+    match /books/{bookId} {
+      allow read: if resource.data.status == "published" || isAdmin() || isManager() || isEmployee();
+      allow create: if isAdmin() || isManager();
+      allow update: if isAdmin()
+        || (isManager() && resource.data.coopId == request.auth.token.coopId)
+        || (isEmployee() && resource.data.ownerUid == request.auth.uid);
+      allow delete: if isAdmin() || (isManager() && resource.data.coopId == request.auth.token.coopId);
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if isAdmin() || request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    match /coops/{coopId} {
+      allow read: if isAdmin() || request.auth.token.coopId == coopId;
+      allow write: if isAdmin();
+
+      match /members/{uid} {
+        allow read: if isAdmin() || request.auth.token.coopId == coopId;
+        allow write: if isAdmin()
+          || (isManager() && request.auth.token.coopId == coopId);
+      }
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || resource.data.userUid == request.auth.uid;
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /user-library/{uid}/books/{bookId} {
+      allow read: if isAdmin() || request.auth.uid == uid;
+      allow write: if isAdmin();
+    }
+  }
+}

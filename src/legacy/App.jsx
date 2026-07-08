@@ -11,12 +11,12 @@ import AuthPage from './components/auth/AuthPage'
 import AppShell from './components/layout/AppShell'
 import {
   ADMIN_EMAIL,
-  ADMIN_EMAILS,
   ADMIN_PASSWORD,
   API_URL,
   STAFF_DEFAULT_PASSWORD,
   fallbackBooks,
 } from './data/bookData'
+import { isSeedAdmin } from '../config/admin'
 import { NavigationProvider } from './context/NavigationContext'
 import { auth } from './firebase'
 import { getAuthor, getCategory, getReaderUrl } from './utils/bookUtils'
@@ -57,7 +57,13 @@ const emptyAdminBook = {
   chapterText: '',
   chaptersDraft: [{ title: 'Chapter 1', pages: '10', content: '' }],
 }
-const guestAccount = { id: 'guest', name: 'None Account', email: 'guest@bookworm.local', role: 'guest' }
+const guestAccount = {
+  id: 'anonymous',
+  name: 'None Account',
+  email: 'anonymous@bookworm.local',
+  role: 'anonymous',
+  accountType: 'normal',
+}
 const pageInitialState = { activePage: 'home', isPageLoading: false }
 const SEARCH_HISTORY_LIMIT = 8
 
@@ -112,10 +118,14 @@ function App() {
   const syncErrorRef = useRef('')
   const activePage = pageState.activePage
 
+  const staffByEmail = useMemo(() => new Map(staff.map((item) => [item.email.toLowerCase(), item])), [staff])
   const staffEmails = useMemo(() => staff.map((item) => item.email.toLowerCase()), [staff])
   const getAccountRole = useCallback(
-    (email) => (ADMIN_EMAILS.includes(email) || staffEmails.includes(email) ? 'admin' : 'user'),
-    [staffEmails],
+    (uid, email) => {
+      if (isSeedAdmin(uid, email)) return 'admin'
+      return staffByEmail.get(email)?.role || (staffEmails.includes(email) ? 'employee' : 'normal')
+    },
+    [staffByEmail, staffEmails],
   )
 
   const navigateTo = useCallback((page, options = {}) => {
@@ -223,7 +233,7 @@ function App() {
   }, [handleDataSyncError])
 
   useEffect(() => {
-    if (account.role === 'guest') {
+    if (account.role === 'anonymous') {
       let isCurrent = true
       queueMicrotask(() => {
         if (!isCurrent) return
@@ -292,7 +302,7 @@ function App() {
   }, [account.id, account.role, handleDataSyncError])
 
   useEffect(() => {
-    if (account.role === 'guest' || !userDataReady) return
+    if (account.role === 'anonymous' || !userDataReady) return
 
     const savedSettings = accountSettings[account.id] || accountSettings[account.email] || {}
     const nextName = savedSettings.displayName || account.name
@@ -323,12 +333,13 @@ function App() {
         name: savedSettings.displayName || user.displayName || email.split('@')[0] || 'Reader',
         email,
         avatar: savedSettings.avatar || user.photoURL || '',
-        role: getAccountRole(email),
+        role: getAccountRole(user.uid, email),
+        accountType: savedSettings.accountType || 'normal',
       }
 
       setAccount(nextAccount)
       setKnownUsers((current) => upsertUser(current, nextAccount))
-      navigateTo(nextAccount.role === 'admin' ? 'admin' : 'home', { instant: true })
+      navigateTo(nextAccount.role === 'admin' || nextAccount.role === 'manager' ? 'admin' : 'home', { instant: true })
       setAuthReady(true)
     })
 
@@ -336,7 +347,7 @@ function App() {
   }, [getAccountRole, navigateTo])
 
   useEffect(() => {
-    if (!globalDataReady || account.role === 'guest') return
+    if (!globalDataReady || account.role === 'anonymous') return
     queueMicrotask(() => {
       setKnownUsers((current) => upsertUser(current, account))
     })
@@ -379,7 +390,7 @@ function App() {
   }, [globalData, globalDataReady, handleDataSyncError])
 
   useEffect(() => {
-    if (account.role === 'guest' || !userDataReady) return
+    if (account.role === 'anonymous' || !userDataReady) return
 
     const nextSnapshot = stableStringify(userData)
     if (nextSnapshot === userDataSnapshotRef.current) return
@@ -501,7 +512,7 @@ function App() {
 
   function updateWebsiteTheme(nextTheme) {
     setWebsiteTheme(nextTheme)
-    if (account.role !== 'guest') {
+    if (account.role !== 'anonymous') {
       setAccountSettings((current) => ({
         ...current,
         [account.id]: {
@@ -559,7 +570,7 @@ function App() {
     setSelectedBook(book)
     setReaderStartPage(startPage)
     navigateTo('reader')
-    if (account.role !== 'guest') {
+    if (account.role !== 'anonymous') {
       setHistory((current) => [book.id, ...current.filter((id) => id !== book.id)].slice(0, 20))
       recordReadingDay()
     }
@@ -567,7 +578,7 @@ function App() {
   }
 
   function openChapter(book, chapter) {
-    if (account.role === 'guest' && chapter.number > 3) {
+    if (account.role === 'anonymous' && chapter.number > 3) {
       setToast({ type: 'error', message: 'BookWorm membership is required to read beyond chapter 3.' })
       return
     }
@@ -590,8 +601,8 @@ function App() {
 
     const nextComment = {
       id: `comment-${Date.now()}`,
-      author: account.role === 'guest' ? getGuestCommentName(bookId, comments[bookId]?.length || 0) : account.name,
-      role: account.role === 'guest' ? 'guest' : 'member',
+      author: account.role === 'anonymous' ? getGuestCommentName(bookId, comments[bookId]?.length || 0) : account.name,
+      role: account.role === 'anonymous' ? 'anonymous' : 'member',
       text: trimmedText,
       createdAt: new Date().toISOString(),
     }
@@ -603,7 +614,7 @@ function App() {
   }
 
   function toggleFavorite(bookId) {
-    if (account.role === 'guest') {
+    if (account.role === 'anonymous') {
       setToast({ type: 'error', message: 'Login to save books to your shelf.' })
       navigateTo('auth')
       return
@@ -675,7 +686,7 @@ function App() {
     )
   }
 
-  const visibleProgress = account.role === 'guest' ? {} : progress
+  const visibleProgress = account.role === 'anonymous' ? {} : progress
 
   const pages = {
     home: (
@@ -737,7 +748,7 @@ function App() {
         key={`${selectedBook?.id || 'empty-reader'}-${readerStartPage || 'checkpoint'}`}
         book={selectedBook}
         account={account}
-        canPersistReaderState={account.role !== 'guest' && userDataReady}
+        canPersistReaderState={account.role !== 'anonymous' && userDataReady}
         checkpoints={checkpoints}
         comments={comments[selectedBook?.id] || []}
         favorites={favorites}
@@ -756,7 +767,7 @@ function App() {
         setReaderTheme={setReaderTheme}
       />
     ),
-    profile: account.role === 'guest' ? (
+    profile: account.role === 'anonymous' ? (
       <HomePage
         books={allBooks}
         favorites={favorites}
@@ -791,7 +802,7 @@ function App() {
         websiteTheme={websiteTheme}
       />
     ),
-    admin: account.role === 'admin' ? (
+    admin: account.role === 'admin' || account.role === 'manager' ? (
       <AdminPage
         addLocalBook={addLocalBook}
         adminBook={adminBook}
@@ -829,7 +840,7 @@ function upsertUser(users, user) {
 }
 
 function getAccountKey(account) {
-  if (!account || account.role === 'guest') return 'guest'
+  if (!account || account.role === 'anonymous') return 'anonymous'
   return account.id || account.email || 'user'
 }
 

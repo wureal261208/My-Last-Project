@@ -56,11 +56,11 @@ export const fallbackBooks = [
 ]
 
 export const starterAccounts = [
-  { name: 'Reader Demo', email: 'reader@bookworm.test', password: 'reader123', role: 'user' },
+  { name: 'Reader Demo', email: 'reader@bookworm.test', password: 'reader123', role: 'normal' },
   { name: 'Admin Demo', email: 'admin@bookworm.test', password: 'admin123', role: 'admin' },
 ]
 
-export const ADMIN_EMAIL = 'adminbookworm2026@gmail.com'
+export const ADMIN_EMAIL = 'phugaming261208@gmail.com'
 export const ADMIN_PASSWORD = 'Admin123'
 export const STAFF_DEFAULT_PASSWORD = 'Admin123'
 export const ADMIN_EMAILS = [ADMIN_EMAIL]

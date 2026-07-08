@@ -51,7 +51,7 @@ function BookDetailPage({
   const readingTime = Math.max(1, Math.round(totalPages * 2.2))
   const rating = Math.min(5, Math.max(3.8, (book.download_count || 1000) / 25000 + 3.6)).toFixed(1)
   const checkpointKey = getCheckpointKey(account, book)
-  const checkpoint = account?.role === 'guest' ? null : checkpoints[checkpointKey]
+  const checkpoint = account?.role === 'anonymous' ? null : checkpoints[checkpointKey]
   const sortedComments = [...comments].sort((first, second) => {
     const firstTime = new Date(first.createdAt).getTime()
     const secondTime = new Date(second.createdAt).getTime()
@@ -86,7 +86,7 @@ function BookDetailPage({
   }
 
   const handleSaveBook = () => {
-    if (account?.role === 'guest') {
+    if (account?.role === 'anonymous') {
       setShowSavePrompt(true)
       return
     }
@@ -95,7 +95,7 @@ function BookDetailPage({
   }
 
   const handleChapterClick = (chapter) => {
-    if (account?.role === 'guest' && chapter.number > 3) {
+    if (account?.role === 'anonymous' && chapter.number > 3) {
       setShowChapterPrompt(true)
       return
     }
@@ -167,7 +167,7 @@ function BookDetailPage({
 }
 
 function getCheckpointKey(account, book) {
-  const accountKey = account?.role === 'guest' ? 'guest' : account?.id || account?.email || 'user'
+  const accountKey = account?.role === 'anonymous' ? 'anonymous' : account?.id || account?.email || 'user'
   return `${accountKey}:${book.id}`
 }
 

@@ -53,7 +53,7 @@ function ReaderPage({
   const totalPages = useMemo(() => getChapterPageTotal(chapters) || metadataTotalPages, [chapters, metadataTotalPages])
   const readerPages = useMemo(() => buildReaderPages(readerText, chapters, totalPages), [chapters, readerText, totalPages])
   const checkpointKey = useMemo(() => getCheckpointKey(account, activeBook), [account, activeBook])
-  const isGuest = account?.role === 'guest'
+  const isGuest = account?.role === 'anonymous'
   const savedCheckpoint = isGuest ? null : checkpoints[checkpointKey]
   const [requestedPage, setCurrentPage] = useState(() => clampPage(startPage || savedCheckpoint?.page || 1, totalPages))
   const currentPage = clampPage(requestedPage, totalPages)
@@ -348,7 +348,7 @@ function ReaderPage({
 }
 
 function getCheckpointKey(account, book) {
-  const accountKey = account?.role === 'guest' ? 'guest' : account?.id || account?.email || 'user'
+  const accountKey = account?.role === 'anonymous' ? 'anonymous' : account?.id || account?.email || 'user'
   return `${accountKey}:${book.id}`
 }
 

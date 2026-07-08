@@ -6,7 +6,7 @@ function DetailChapters({ account, chapters, onChapterClick }) {
           <p className="mono-eyebrow">Table of contents</p>
           <h2>Chapters</h2>
         </div>
-        {account?.role === 'guest' && <span>Guest preview includes chapters 1-3</span>}
+        {account?.role === 'anonymous' && <span>Guest preview includes chapters 1-3</span>}
       </div>
       <div className="detail-chapter-grid">
         {chapters.map((chapter) => (
@@ -16,7 +16,7 @@ function DetailChapters({ account, chapters, onChapterClick }) {
               <strong>{chapter.title}</strong>
               <small>{chapter.pages} pages - starts page {chapter.startPage}</small>
             </div>
-            <i className={`bi ${account?.role === 'guest' && chapter.number > 3 ? 'bi-lock-fill' : 'bi-arrow-right'}`} />
+            <i className={`bi ${account?.role === 'anonymous' && chapter.number > 3 ? 'bi-lock-fill' : 'bi-arrow-right'}`} />
           </button>
         ))}
       </div>

@@ -12,7 +12,7 @@ const navItems = [
 
 function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme = 'paper' }) {
   const { activePage, isPageLoading, navigateTo } = useNavigation()
-  const isGuest = account?.role === 'guest'
+  const isGuest = account?.role === 'anonymous'
   const isAdminPage = activePage === 'admin'
   const displayName = account?.name || 'None Account'
   const visibleNavItems = ['admin', 'profile'].includes(activePage)
@@ -29,7 +29,7 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
 
         <nav className="main-nav" aria-label="Main navigation">
           {visibleNavItems.map((item) => {
-            if (item.admin && account?.role !== 'admin') return null
+            if (item.admin && !['admin', 'manager'].includes(account?.role)) return null
             if (item.private && isGuest) return null
 
             return (

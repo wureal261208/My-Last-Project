@@ -23,6 +23,11 @@ http://localhost:3000
 - `public/hero.png`: hero image dùng chung cho app.
 - `src/lib/firebase/client.ts`: Firebase client config dùng chung.
 - `src/lib/firebase/admin.ts`: Firebase Admin SDK cho server-side.
+- `src/config/admin.ts`: seed admin UID/email, đổi admin tại `.env.local`.
+- `src/lib/auth/permissions.ts`: helper phân quyền theo role/account type.
+- `src/app/api/admin/set-claims/route.ts`: API gán Firebase Custom Claims.
+- `scripts/import-gutenberg.mjs`: import metadata Kaggle Gutenberg vào Firestore.
+- `docs/role-and-data-flow.md`: tài liệu luồng role và database.
 
 ## Ghi chú
 

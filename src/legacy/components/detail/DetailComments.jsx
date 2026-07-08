@@ -38,7 +38,7 @@ function DetailComments({
         }}
       >
         <label>
-          {account?.role === 'guest' ? 'Comment as guest' : `Comment as ${account.name}`}
+          {account?.role === 'anonymous' ? 'Comment as guest' : `Comment as ${account.name}`}
           <textarea
             value={commentText}
             onChange={(event) => onCommentText(event.target.value)}
@@ -62,7 +62,7 @@ function DetailComments({
             <article className="comment-item" key={comment.id}>
               <div>
                 <strong>{comment.author}</strong>
-                <span>{comment.role === 'guest' ? 'Guest reader' : 'Member'}</span>
+                <span>{comment.role === 'anonymous' ? 'Guest reader' : 'Member'}</span>
               </div>
               <p>{comment.text}</p>
               <time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleDateString()}</time>
