@@ -23,6 +23,34 @@ export function getCategory(book) {
   return book.bookshelves?.[0] || book.subjects?.[0]?.split('--')[0].trim() || book.category || 'Classic'
 }
 
+export function getBookAccessType(book = {}) {
+  const configuredType = book.accessType || book.access_type || book.publishTarget || book.publish_target || book.commerceType
+  if (configuredType === 'for-sale' || configuredType === 'sale') return 'for-sale'
+  if (configuredType === 'free-to-read' || configuredType === 'free') return 'free-to-read'
+
+  const numericSeed = Number(String(book.id || '').replace(/\D/g, '').slice(-2))
+  return Number.isFinite(numericSeed) && numericSeed % 3 === 0 ? 'for-sale' : 'free-to-read'
+}
+
+export function isBookForSale(book) {
+  return getBookAccessType(book) === 'for-sale'
+}
+
+export function getBookRating(book = {}) {
+  const reviewCount = getBookReviewCount(book)
+  const popularitySeed = Math.min(0.9, Math.log10((book.download_count || 1000) + 1) / 8)
+  const reviewSeed = Math.min(0.4, reviewCount / 5000)
+
+  return Math.min(5, 3.7 + popularitySeed + reviewSeed).toFixed(1)
+}
+
+export function getBookReviewCount(book = {}) {
+  const explicitReviews = Number(book.reviewCount || book.review_count || book.ratingsCount || book.ratings_count)
+  if (Number.isFinite(explicitReviews) && explicitReviews >= 0) return Math.floor(explicitReviews)
+
+  return Math.max(12, Math.floor((book.download_count || 1200) / 38))
+}
+
 export function getDescription(book) {
   const subjects = book.subjects?.slice(0, 3).join(', ')
   return (

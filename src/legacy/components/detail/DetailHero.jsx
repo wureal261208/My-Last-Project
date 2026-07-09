@@ -9,7 +9,9 @@ function DetailHero({
   onRead,
   onSaveBook,
   onToggleSavePrompt,
+  accessType,
   rating,
+  reviewCount,
   readingTime,
   showSavePrompt,
   totalChapters,
@@ -20,7 +22,10 @@ function DetailHero({
     <div className="detail-layout">
       <img loading="lazy" src={getCover(book)} alt={`${book.title} cover`} />
       <div className="detail-copy">
-        <p className="mono-eyebrow">{getCategory(book)}</p>
+        <div className="detail-title-tags">
+          <p className="mono-eyebrow">{getCategory(book)}</p>
+          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-sale' ? 'For sale' : 'Free to read'}</span>
+        </div>
         <h1>{book.title}</h1>
         <p className="detail-author">{getAuthor(book)}</p>
         <div className="rating-row" aria-label={`${rating} out of 5 stars`}>
@@ -28,7 +33,8 @@ function DetailHero({
           {[1, 2, 3, 4, 5].map((star) => (
             <i className={`bi ${star <= Math.round(rating) ? 'bi-star-fill' : 'bi-star'}`} key={star} />
           ))}
-          <small>{totalReads.toLocaleString()} reads</small>
+          <small>{reviewCount.toLocaleString()} reviews</small>
+          <small>{totalReads.toLocaleString()} views</small>
         </div>
         <div className="detail-meta-grid">
           <article>

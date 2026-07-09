@@ -5,7 +5,7 @@ import DetailHero from '../detail/DetailHero'
 import DetailRecommendations from '../detail/DetailRecommendations'
 import DetailTabs from '../detail/DetailTabs'
 import MembershipRequiredModal from '../detail/MembershipRequiredModal'
-import { getAuthor, getCategory } from '../../utils/bookUtils'
+import { getAuthor, getBookAccessType, getBookRating, getBookReviewCount, getCategory } from '../../utils/bookUtils'
 import { getBookChapters, getTotalPages } from '../../utils/chapterUtils'
 
 function BookDetailPage({
@@ -49,7 +49,9 @@ function BookDetailPage({
   const totalChapters = detailChapters.length
   const language = book.languages?.join(', ').toUpperCase() || 'EN'
   const readingTime = Math.max(1, Math.round(totalPages * 2.2))
-  const rating = Math.min(5, Math.max(3.8, (book.download_count || 1000) / 25000 + 3.6)).toFixed(1)
+  const rating = getBookRating(book)
+  const reviewCount = getBookReviewCount(book)
+  const accessType = getBookAccessType(book)
   const checkpointKey = getCheckpointKey(account, book)
   const checkpoint = account?.role === 'anonymous' ? null : checkpoints[checkpointKey]
   const sortedComments = [...comments].sort((first, second) => {
@@ -67,7 +69,8 @@ function BookDetailPage({
       score:
         Number(getCategory(item) === getCategory(book)) * 3 +
         Number(getAuthor(item) === getAuthor(book)) * 2 +
-        Number(Boolean(item.subjects?.some((subject) => book.subjects?.includes(subject)))),
+        Number(Boolean(item.subjects?.some((subject) => book.subjects?.includes(subject)))) +
+        Math.min(2, (viewCounts[item.id] || 0) / 10),
     }))
     .filter((item) => item.score > 0)
     .sort((first, second) => second.score - first.score || (second.book.download_count || 0) - (first.book.download_count || 0))
@@ -114,7 +117,9 @@ function BookDetailPage({
         onRead={onRead}
         onSaveBook={handleSaveBook}
         onToggleSavePrompt={setShowSavePrompt}
+        accessType={accessType}
         rating={rating}
+        reviewCount={reviewCount}
         readingTime={readingTime}
         showSavePrompt={showSavePrompt}
         totalChapters={totalChapters}

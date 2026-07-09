@@ -52,6 +52,7 @@ function ReaderPage({
   const chapters = contentChapters.length > 1 ? contentChapters : metadataChapters
   const totalPages = useMemo(() => getChapterPageTotal(chapters) || metadataTotalPages, [chapters, metadataTotalPages])
   const readerPages = useMemo(() => buildReaderPages(readerText, chapters, totalPages), [chapters, readerText, totalPages])
+  const readerChapterPages = useMemo(() => buildReaderChapterPages(readerText, chapters, readerPages), [chapters, readerPages, readerText])
   const checkpointKey = useMemo(() => getCheckpointKey(account, activeBook), [account, activeBook])
   const isGuest = account?.role === 'anonymous'
   const savedCheckpoint = isGuest ? null : checkpoints[checkpointKey]
@@ -60,12 +61,12 @@ function ReaderPage({
   const currentChapterIndex = getChapterIndex(currentPage, chapters)
   const currentChapter = chapters[currentChapterIndex]
   const currentChapterNumber = currentChapterIndex + 1
-  const chapterPage = currentPage - currentChapter.startPage + 1
+  const chapterPage = 1
   const hasReachedGuestLimit = isGuest && currentChapterNumber > GUEST_CHAPTER_LIMIT
-  const isFinished = currentPage >= totalPages
-  const progressValue = Math.round((currentPage / totalPages) * 100)
-  const chapterProgressValue = Math.round((chapterPage / currentChapter.pages) * 100)
-  const currentReaderText = readerPages[currentPage - 1] || ''
+  const isFinished = currentChapterIndex >= chapters.length - 1
+  const progressValue = Math.round(((currentChapterIndex + 1) / chapters.length) * 100)
+  const chapterProgressValue = 100
+  const currentReaderText = readerChapterPages[currentChapterIndex] || readerPages[currentPage - 1] || ''
   const currentReaderParagraphs = useMemo(() => getDisplayParagraphs(currentReaderText), [currentReaderText])
   const chapterStrip = useMemo(() => getChapterStrip(chapters, currentChapterIndex), [chapters, currentChapterIndex])
   const sortedComments = [...comments].sort((first, second) => {
@@ -88,7 +89,7 @@ function ReaderPage({
         [checkpointKey]: {
           page: safePage,
           chapter: checkpointChapter.number || chapterIndex + 1,
-          chapterPage: safePage - checkpointChapter.startPage + 1,
+          chapterPage: 1,
           totalPages,
           updatedAt: new Date().toISOString(),
         },
@@ -201,7 +202,8 @@ function ReaderPage({
 
   function handlePageChange(nextPage) {
     const safePage = Number(nextPage)
-    setCurrentPage(clampPage(safePage, totalPages))
+    const chapterIndex = getChapterIndex(clampPage(safePage, totalPages), chapters)
+    setCurrentPage(chapters[chapterIndex]?.startPage || 1)
   }
 
   function goToChapter(chapterIndex) {
@@ -217,10 +219,12 @@ function ReaderPage({
   }
 
   function movePage(direction) {
-    const nextChapterIndex = currentChapterIndex + 1
+    const nextChapterIndex = currentChapterIndex + direction
 
-    if (direction > 0 && chapterPage >= currentChapter.pages && nextChapterIndex < chapters.length) {
-      if (isGuest && currentChapterNumber >= GUEST_CHAPTER_LIMIT) {
+    if (nextChapterIndex < 0 || nextChapterIndex >= chapters.length) return
+
+    if (direction > 0) {
+      if (isGuest && nextChapterIndex + 1 > GUEST_CHAPTER_LIMIT) {
         setShowMemberPrompt(true)
         return
       }
@@ -229,7 +233,7 @@ function ReaderPage({
       return
     }
 
-    handlePageChange(currentPage + direction)
+    setCurrentPage(chapters[nextChapterIndex].startPage)
   }
 
   function continueToPendingChapter() {
@@ -245,8 +249,12 @@ function ReaderPage({
   }
 
   function markChapterDone() {
-    const finalChapterPage = currentChapter.startPage + currentChapter.pages - 1
-    handlePageChange(finalChapterPage)
+    if (currentChapterIndex < chapters.length - 1) {
+      movePage(1)
+      return
+    }
+
+    handlePageChange(currentChapter.startPage)
   }
 
   function handleExit() {
@@ -493,6 +501,27 @@ function buildReaderPages(text, chapters, totalPages) {
   }
 
   return splitTextIntoPages(text, totalPages)
+}
+
+function buildReaderChapterPages(text, chapters, readerPages = []) {
+  if (!chapters.length) return []
+
+  if (chapters.some((chapter) => chapter.content)) {
+    return chapters.map((chapter) => cleanBookText(chapter.content || ''))
+  }
+
+  if (text) {
+    const chapterBodies = splitTextByChapterHeadings(text)
+    if (chapterBodies.length >= chapters.length) {
+      return groupEntries(chapterBodies.map((chapter) => chapter.content), chapters.length)
+    }
+  }
+
+  return chapters.map((chapter) => {
+    const start = Math.max(0, chapter.startPage - 1)
+    const end = start + Math.max(1, chapter.pages || 1)
+    return readerPages.slice(start, end).filter(Boolean).join('\n\n')
+  })
 }
 
 function getContentChapters(book, text, totalPages) {

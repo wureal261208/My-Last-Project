@@ -31,7 +31,7 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
 
         <nav className="main-nav" aria-label="Main navigation">
           {visibleNavItems.map((item) => {
-            if (item.admin && !['admin', 'manager'].includes(account?.role)) return null
+            if (item.admin && !['admin', 'manager', 'employee'].includes(account?.role)) return null
             if (item.private && isGuest) return null
 
             return (

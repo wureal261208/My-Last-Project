@@ -1,7 +1,8 @@
-import { getAuthor, getCategory, getCover } from '../../utils/bookUtils'
+import { getAuthor, getBookAccessType, getBookRating, getBookReviewCount, getCategory, getCover } from '../../utils/bookUtils'
 
 function BookCard({ book, favorites = [], onDetail, onFavorite, onRead, viewCount = 0 }) {
   const totalReads = (book.download_count || 0) + viewCount
+  const accessType = getBookAccessType(book)
 
   return (
     <article className="book-card">
@@ -9,10 +10,17 @@ function BookCard({ book, favorites = [], onDetail, onFavorite, onRead, viewCoun
         <img loading="lazy" src={getCover(book)} alt={`${book.title} cover`} />
       </button>
       <div>
-        <span className="category">{getCategory(book)}</span>
+        <div className="book-card-tags">
+          <span className="category">{getCategory(book)}</span>
+          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-sale' ? 'For sale' : 'Free read'}</span>
+        </div>
         <h2>{book.title}</h2>
         <p>{getAuthor(book)}</p>
-        <small>{totalReads.toLocaleString()} reads</small>
+        <small>
+          <i className="bi bi-star-fill" /> {getBookRating(book)}
+          {' '}· {getBookReviewCount(book).toLocaleString()} reviews
+          {' '}· {totalReads.toLocaleString()} views
+        </small>
       </div>
       <div className="card-actions">
         <button className="primary-button" onClick={() => onRead(book)} type="button">

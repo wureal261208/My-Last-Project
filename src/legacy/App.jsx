@@ -19,7 +19,7 @@ import {
 import { isSeedAdmin } from '../config/admin'
 import { NavigationProvider } from './context/NavigationContext'
 import { auth } from './firebase'
-import { getAuthor, getCategory, getReaderUrl } from './utils/bookUtils'
+import { getAuthor, getBookAccessType, getCategory, getReaderUrl } from './utils/bookUtils'
 import {
   globalDataDefaults,
   saveGlobalData,
@@ -57,6 +57,7 @@ const emptyAdminBook = {
   chapterTitles: '',
   readerText: '',
   chapterText: '',
+  accessType: 'free-to-read',
   chaptersDraft: [{ title: 'Chapter 1', pages: '10', content: '' }],
 }
 const guestAccount = {
@@ -407,7 +408,9 @@ function App() {
     () => localBooks.filter((book) => (book.status || 'published') === 'published'),
     [localBooks],
   )
-  const allBooks = useMemo(() => [...publishedLocalBooks, ...books], [books, publishedLocalBooks])
+  const allBooks = useMemo(() => normalizeBookAccess([...publishedLocalBooks, ...books]), [books, publishedLocalBooks])
+  const freeReadBooks = useMemo(() => allBooks.filter((book) => getBookAccessType(book) === 'free-to-read'), [allBooks])
+  const saleBooks = useMemo(() => allBooks.filter((book) => getBookAccessType(book) === 'for-sale'), [allBooks])
   const topics = useMemo(() => ['all', ...new Set(allBooks.map(getCategory).slice(0, 12))], [allBooks])
   const filteredBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -693,6 +696,7 @@ function App() {
       subjects: Array.isArray(book.subjects) ? book.subjects.join(', ') : book.subjects || '',
       language: book.languages?.[0] || book.language || 'en',
       status: book.status || 'published',
+      accessType: getBookAccessType(book),
       chapterTitles: Array.isArray(book.chapterList) ? book.chapterList.map((chapter) => chapter.title).join('\n') : book.chapterTitles || '',
       chapterText: Array.isArray(book.chapterList) ? book.chapterList.map((chapter) => chapter.content).filter(Boolean).join('\n--- chapter ---\n') : book.chapterText || '',
       chaptersDraft: getEditableChapters(book),
@@ -747,7 +751,7 @@ function App() {
     store: (
       <StorePage
         account={account}
-        books={allBooks}
+        books={saleBooks}
         cartItems={cartItems}
         onAddToCart={addToCart}
         onCheckout={checkoutCart}
@@ -864,8 +868,9 @@ function App() {
         websiteTheme={websiteTheme}
       />
     ),
-    admin: account.role === 'admin' || account.role === 'manager' ? (
+    admin: ['admin', 'manager', 'employee'].includes(account.role) ? (
       <AdminPage
+        account={account}
         addLocalBook={addLocalBook}
         adminBook={adminBook}
         books={allBooks}
@@ -944,6 +949,7 @@ function createAdminBookRecord(adminBook) {
   const language = adminBook.language.trim().toLowerCase()
   const author = adminBook.author.trim() || 'BookWorm editor'
   const category = adminBook.category.trim() || 'Admin pick'
+  const accessType = adminBook.accessType === 'for-sale' ? 'for-sale' : 'free-to-read'
 
   return {
     ...adminBook,
@@ -957,6 +963,7 @@ function createAdminBookRecord(adminBook) {
     subjects,
     languages: [language || 'en'],
     status: adminBook.status || 'draft',
+    accessType,
     ...(pageCount ? { pageCount } : {}),
     ...(chapterCount ? { chapterCount } : {}),
     ...(chapterList.length ? { chapterList } : {}),
@@ -967,6 +974,22 @@ function createAdminBookRecord(adminBook) {
       ...(readerUrl ? { [getReaderFormatKey(readerUrl)]: readerUrl } : {}),
     },
   }
+}
+
+function normalizeBookAccess(sourceBooks) {
+  const seenIds = new Set()
+
+  return sourceBooks
+    .map((book) => ({
+      ...book,
+      accessType: getBookAccessType(book),
+    }))
+    .filter((book) => {
+      const key = String(book.id)
+      if (seenIds.has(key)) return false
+      seenIds.add(key)
+      return true
+    })
 }
 
 function createAdminChapters(titleSource, contentSource, pageCount, chapterCount) {

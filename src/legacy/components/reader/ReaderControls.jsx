@@ -31,11 +31,11 @@ function ReaderControls({
         </div>
       </label>
       <div className="reader-page-meter">
-        <span>{currentChapter.label} - Page {chapterPage} / {currentChapter.pages}</span>
+        <span>{currentChapter.label}</span>
         <progress max="100" value={chapterProgressValue} />
-        <small>Chapter progress: {chapterProgressValue}%</small>
-        <button disabled={chapterPage >= currentChapter.pages} onClick={onMarkChapterDone} type="button">
-          Mark chapter done
+        <small>Showing this chapter only</small>
+        <button disabled={isFinished} onClick={onMarkChapterDone} type="button">
+          Next chapter
         </button>
         {isGuest && <small>Guest preview: first {guestChapterLimit} chapters</small>}
         <small>Book progress: {progressValue}%</small>

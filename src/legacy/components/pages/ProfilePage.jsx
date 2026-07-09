@@ -131,6 +131,8 @@ function ProfileSettings({
       <div className="settings-layout">
         <div className="account-settings-card account-status-card">
           <SettingsHeading icon="bi-person-badge" kicker="Membership" title="Account status" />
+          <SnippetText label="Email" value={account.email} />
+          <SnippetText label="Account ID" value={account.id || 'Local account'} />
           <p className="settings-copy">
             Current account type: <strong>{account.accountType === 'vip' ? 'VIP' : 'Normal'}</strong>
           </p>
@@ -148,7 +150,7 @@ function ProfileSettings({
               {purchaseHistory.slice(0, 8).map((item) => (
                 <div className="purchase-row" key={`${item.id}-${item.purchasedAt}`}>
                   <span>{item.title}</span>
-                  <small>{new Date(item.purchasedAt).toLocaleDateString('vi-VN')}</small>
+                  <small>{new Date(item.purchasedAt).toLocaleDateString('en-US')}</small>
                 </div>
               ))}
             </div>
@@ -190,7 +192,8 @@ function ProfileSettings({
 
         <div className="account-settings-card">
           <SettingsHeading icon="bi-shield-lock" kicker="Security" title="Password" />
-          <p className="settings-copy">Send a reset link to {account.email}.</p>
+          <p className="settings-copy">Send a reset link to the email below.</p>
+          <SnippetText label="Reset email" value={account.email} />
           <button className="ghost-button" disabled={settingsLoading} onClick={sendResetPassword} type="button">
             <i className="bi bi-envelope-arrow-up" />
             Send reset email
@@ -260,6 +263,15 @@ function SettingsHeading({ icon, kicker, title }) {
         <p className="mono-eyebrow">{kicker}</p>
         <h3>{title}</h3>
       </div>
+    </div>
+  )
+}
+
+function SnippetText({ label, value }) {
+  return (
+    <div className="snippet-text">
+      <span>{label}</span>
+      <code>{value}</code>
     </div>
   )
 }

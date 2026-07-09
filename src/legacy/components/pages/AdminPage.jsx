@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { getAuthor, getCategory, getCover, getDescription, getReaderUrl } from '../../utils/bookUtils'
+import { getAuthor, getBookAccessType, getCategory, getCover, getDescription, getReaderUrl } from '../../utils/bookUtils'
 import { getBookChapters, getTotalPages } from '../../utils/chapterUtils'
 
 const identityFields = [
@@ -21,12 +21,15 @@ const languageChoices = [
 
 const adminBookFilters = [
   { id: 'all', label: 'All books' },
+  { id: 'free-to-read', label: 'Free-to-read' },
+  { id: 'for-sale', label: 'For-sale' },
   { id: 'reader-ready', label: 'Ready for Reader' },
   { id: 'missing-cover', label: 'Missing Cover' },
   { id: 'missing-chapters', label: 'Missing Chapters' },
 ]
 
 function AdminPage({
+  account,
   addLocalBook,
   adminBook,
   books,
@@ -43,12 +46,14 @@ function AdminPage({
   const [bookFilter, setBookFilter] = useState('all')
   const [showPreview, setShowPreview] = useState(false)
   const publishedBooks = localBooks.filter((book) => (book.status || 'published') === 'published').length
-  const detailReadyBooks = localBooks.filter((book) => !getBookWarnings(book).some((warning) => warning.id === 'description')).length
-  const readerReadyBooks = localBooks.filter((book) => isReaderReady(book)).length
+  const freeBooks = localBooks.filter((book) => getBookAccessType(book) === 'free-to-read').length
+  const saleBooks = localBooks.filter((book) => getBookAccessType(book) === 'for-sale').length
   const currentWarnings = getFormWarnings(adminBook)
   const previewBook = useMemo(() => createPreviewBook(adminBook), [adminBook])
   const filteredLocalBooks = localBooks.filter((book) => {
     if (bookFilter === 'reader-ready') return isReaderReady(book)
+    if (bookFilter === 'free-to-read') return getBookAccessType(book) === 'free-to-read'
+    if (bookFilter === 'for-sale') return getBookAccessType(book) === 'for-sale'
     if (bookFilter === 'missing-cover') return !hasCover(book)
     if (bookFilter === 'missing-chapters') return !hasChapters(book)
     return true
@@ -92,23 +97,40 @@ function AdminPage({
       name: form.get('name').trim(),
       email: form.get('email').trim().toLowerCase(),
       role: form.get('role'),
+      specialty: form.get('specialty') || 'free-to-read',
+      managerEmail: form.get('managerEmail') || '',
+      taskSummary: form.get('taskSummary')?.trim() || 'No task report yet.',
     }
     if (!next.name || !next.email) return
     setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
     event.currentTarget.reset()
   }
 
+  function updateStaff(email, updates) {
+    setStaff((current) => current.map((member) => (member.email === email ? { ...member, ...updates } : member)))
+  }
+
+  function removeStaff(email) {
+    setStaff((current) => current.filter((member) => member.email !== email))
+  }
+
+  const managers = staff.filter((member) => member.role === 'manager')
+  const employees = staff.filter((member) => member.role === 'employee')
+  const permissions = getAdminPermissions(account)
+
   return (
     <div className="admin-page">
       <section className="page-title admin-title">
         <div>
-          <p className="mono-eyebrow">Admin</p>
-          <h1>BookWorm control panel</h1>
+          <p className="mono-eyebrow">Admin dashboard</p>
+          <h1>Profile and access control</h1>
         </div>
         <p>
-          Manage the books, reader content, access rules, and team accounts that directly affect the main BookWorm site.
+          This dashboard starts with the signed-in staff profile and the exact permissions available to that role.
         </p>
       </section>
+
+      <AdminAccessProfile account={account} permissions={permissions} />
 
       <div className="admin-sticky-switcher" role="tablist" aria-label="Admin sections">
         <button className={activeAdminSection === 'book' ? 'active' : ''} onClick={() => setActiveAdminSection('book')} type="button">
@@ -124,8 +146,8 @@ function AdminPage({
       <div className="metrics admin-metrics">
         <article><strong>{books.length}</strong><span>Books on main</span></article>
         <article><strong>{publishedBooks}</strong><span>Published admin books</span></article>
-        <article><strong>{detailReadyBooks}</strong><span>Detail ready</span></article>
-        <article><strong>{readerReadyBooks}</strong><span>Reader ready</span></article>
+        <article><strong>{freeBooks}</strong><span>Free-to-read books</span></article>
+        <article><strong>{saleBooks}</strong><span>For-sale books</span></article>
       </div>
 
       {activeAdminSection === 'book' ? (
@@ -169,6 +191,13 @@ function AdminPage({
                   />
                 </label>
               ))}
+              <label>
+                Publish target
+                <select value={adminBook.accessType || 'free-to-read'} onChange={(event) => updateAdminBook('accessType', event.target.value)}>
+                  <option value="free-to-read">Free-to-read library</option>
+                  <option value="for-sale">For-sale store</option>
+                </select>
+              </label>
               <label>
                 Status
                 <select value={adminBook.status} onChange={(event) => updateAdminBook('status', event.target.value)}>
@@ -317,6 +346,7 @@ function AdminPage({
                       <span>
                         {book.title}
                         <em className={`admin-status status-${book.status || 'published'}`}>{book.status || 'published'}</em>
+                        <em className={`admin-status status-${getBookAccessType(book)}`}>{getBookAccessType(book)}</em>
                       </span>
                       <small>{getAuthor(book)} - {getCategory(book)} - {chapters.length} chapters</small>
                       <div className="admin-row-actions">
@@ -356,8 +386,8 @@ function AdminPage({
               <p className="mono-eyebrow">Team access</p>
               <h2>Co-op manager / employee</h2>
             </div>
-            <span>Managers can maintain employees. Employees can help maintain books.</span>
-          </div>
+              <span>Admin controls two managers: one for free reader books and one for sale books.</span>
+            </div>
 
           <form className="admin-form compact-form" onSubmit={addStaff}>
             <p className="form-note">
@@ -372,22 +402,76 @@ function AdminPage({
                 <option value="employee">Employee</option>
               </select>
             </label>
+            <label>
+              Specialty
+              <select name="specialty" defaultValue="free-to-read">
+                <option value="free-to-read">Reading books manager</option>
+                <option value="for-sale">Sale books manager</option>
+              </select>
+            </label>
+            <label>
+              Assigned manager
+              <select name="managerEmail" defaultValue="">
+                <option value="">Direct admin assignment</option>
+                {managers.map((manager) => (
+                  <option key={manager.email} value={manager.email}>{manager.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="wide-field">
+              Employee task report
+              <input name="taskSummary" placeholder="Imported chapters, checked covers, prepared sale metadata..." />
+            </label>
             <button className="primary-button" type="submit">Create account</button>
           </form>
 
           <div className="admin-two-col">
             <section className="admin-table staff-table">
-              <h2>Manager / employee accounts</h2>
-              {staff.length ? (
-                staff.map((member) => (
-                  <div className="table-row" key={member.email}>
+              <h2>Manager accounts</h2>
+              {managers.length ? (
+                managers.map((member) => (
+                  <div className="table-row staff-row" key={member.email}>
                     <span>{member.name}</span>
-                    <small>{member.email}</small>
-                    <strong>{member.role}</strong>
+                    <SnippetText label="Email" value={member.email} />
+                    <strong>{member.specialty === 'for-sale' ? 'Sale books manager' : 'Reading books manager'}</strong>
+                    <div className="admin-row-actions">
+                      <select value={member.specialty || 'free-to-read'} onChange={(event) => updateStaff(member.email, { specialty: event.target.value })}>
+                        <option value="free-to-read">Reading books</option>
+                        <option value="for-sale">Sale books</option>
+                      </select>
+                      <button className="ghost-button" onClick={() => updateStaff(member.email, { role: 'employee' })} type="button">Make employee</button>
+                      <button className="ghost-button" onClick={() => removeStaff(member.email)} type="button">Delete</button>
+                    </div>
                   </div>
                 ))
               ) : (
-                <p>No manager or employee accounts yet.</p>
+                <p>No manager accounts yet. Create one manager for reading books and one for sale books.</p>
+              )}
+            </section>
+
+            <section className="admin-table staff-table">
+              <h2>Employee reports</h2>
+              {employees.length ? (
+                employees.map((member) => (
+                  <div className="table-row staff-row" key={member.email}>
+                    <span>{member.name}</span>
+                    <SnippetText label="Email" value={member.email} />
+                    <strong>{getManagerName(member.managerEmail, managers)}</strong>
+                    <p>{member.taskSummary || 'No task report yet.'}</p>
+                    <div className="admin-row-actions">
+                      <select value={member.managerEmail || ''} onChange={(event) => updateStaff(member.email, { managerEmail: event.target.value })}>
+                        <option value="">Direct admin assignment</option>
+                        {managers.map((manager) => (
+                          <option key={manager.email} value={manager.email}>{manager.name}</option>
+                        ))}
+                      </select>
+                      <button className="ghost-button" onClick={() => updateStaff(member.email, { role: 'manager', specialty: 'free-to-read' })} type="button">Make manager</button>
+                      <button className="ghost-button" onClick={() => removeStaff(member.email)} type="button">Delete</button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p>No employee accounts yet.</p>
               )}
             </section>
 
@@ -397,7 +481,7 @@ function AdminPage({
                 users.map((user) => (
                   <div className="table-row" key={user.email}>
                     <span>{user.name}</span>
-                    <small>{user.email}</small>
+                    <SnippetText label="Email" value={user.email} />
                     <strong>{user.role}</strong>
                   </div>
                 ))
@@ -412,6 +496,72 @@ function AdminPage({
       {showPreview && <AdminDetailPreview book={previewBook} onClose={() => setShowPreview(false)} />}
     </div>
   )
+}
+
+function AdminAccessProfile({ account = {}, permissions = [] }) {
+  return (
+    <section className="admin-access-profile">
+      <div className="admin-profile-card">
+        <div>
+          <p className="mono-eyebrow">Signed-in profile</p>
+          <h2>{account.name || 'Staff account'}</h2>
+          <span className={`admin-status status-${account.role || 'employee'}`}>{account.role || 'employee'}</span>
+          <span className={account.accountType === 'vip' ? 'vip-badge' : 'normal-badge'}>
+            {account.accountType === 'vip' ? 'VIP' : 'Normal'}
+          </span>
+        </div>
+        <SnippetText label="Email" value={account.email || 'No email available'} />
+        <SnippetText label="Firebase UID" value={account.id || 'No Firebase UID available'} />
+      </div>
+
+      <div className="admin-permission-card">
+        <p className="mono-eyebrow">Admin permissions</p>
+        <h2>Permission scope</h2>
+        <div className="admin-permission-list">
+          {permissions.map((permission) => (
+            <span key={permission}>
+              <i className="bi bi-check2-circle" />
+              {permission}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SnippetText({ label, value }) {
+  return (
+    <div className="snippet-text">
+      <span>{label}</span>
+      <code>{value}</code>
+    </div>
+  )
+}
+
+function getAdminPermissions(account = {}) {
+  if (account.role === 'admin') {
+    return [
+      'Publish, edit, and remove reader/store books',
+      'Create, delete, and promote managers',
+      'Assign employees and review task reports',
+      'View staff profile and permission metadata',
+    ]
+  }
+
+  if (account.role === 'manager') {
+    return [
+      'Review assigned book workflow',
+      'Track employees assigned by admin',
+      'View profile and permission metadata',
+    ]
+  }
+
+  return [
+    'View assigned work profile',
+    'Review personal task report state',
+    'View profile and permission metadata',
+  ]
 }
 
 function AdminDetailPreview({ book, onClose }) {
@@ -456,6 +606,7 @@ function createPreviewBook(adminBook) {
     category: adminBook.category.trim() || 'Admin pick',
     authors: [{ name: adminBook.author.trim() || 'BookWorm editor' }],
     bookshelves: [adminBook.category.trim() || 'Admin pick'],
+    accessType: adminBook.accessType === 'for-sale' ? 'for-sale' : 'free-to-read',
     subjects,
     languages: ['en'],
     pageCount: chapters.reduce((total, chapter) => total + chapter.pages, 0) || 120,
@@ -482,6 +633,11 @@ function normalizePreviewChapters(chapters = []) {
     startPage += pages
     return nextChapter
   })
+}
+
+function getManagerName(managerEmail, managers) {
+  if (!managerEmail) return 'Direct admin assignment'
+  return managers.find((manager) => manager.email === managerEmail)?.name || 'Manager no longer exists'
 }
 
 function getFormWarnings(book) {

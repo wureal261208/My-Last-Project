@@ -28,11 +28,13 @@ function ReaderFrame({
           <h2>{currentChapter.title}</h2>
         </div>
         <div className="reader-page-actions">
-          <button disabled={currentPage === 1} onClick={() => onMovePage(-1)} type="button">
+          <button disabled={currentChapterIndex === 0} onClick={() => onMovePage(-1)} type="button">
             <i className="bi bi-chevron-left" />
+            Previous
           </button>
-          <span>Page {chapterPage}</span>
-          <button disabled={currentPage === totalPages} onClick={() => onMovePage(1)} type="button">
+          <span>Chapter {currentChapterIndex + 1}</span>
+          <button disabled={currentChapter.startPage + currentChapter.pages > totalPages} onClick={() => onMovePage(1)} type="button">
+            Next
             <i className="bi bi-chevron-right" />
           </button>
         </div>
@@ -44,7 +46,7 @@ function ReaderFrame({
         </div>
       ) : currentReaderParagraphs.length ? (
         <div className="reader-text-page" aria-live="polite" style={{ fontSize: `${fontScale}px` }}>
-          <p className="reader-page-kicker">{currentChapter.title} - Page {chapterPage}</p>
+          <p className="reader-page-kicker">{currentChapter.title}</p>
           {currentReaderParagraphs.map((paragraph, index) => (
             <p key={`${currentPage}-${index}`}>{paragraph}</p>
           ))}

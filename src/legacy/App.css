@@ -893,6 +893,40 @@ textarea {
   color: #74746f;
 }
 
+.book-card-tags,
+.detail-title-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-access-tag {
+  width: fit-content;
+  border: 1px solid #d9d4c8;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #4f4a43;
+  background: #f7f4ec;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.book-access-tag.for-sale,
+.admin-status.status-for-sale {
+  border-color: #c8d6f1;
+  color: #183d74;
+  background: #edf4ff;
+}
+
+.book-access-tag.free-to-read,
+.admin-status.status-free-to-read {
+  border-color: #c7dfd0;
+  color: #1f6640;
+  background: #eef8f1;
+}
+
 .card-actions {
   padding: 0 16px 16px;
 }
@@ -2805,8 +2839,12 @@ progress {
 }
 
 .reader-page-actions button {
-  width: 38px;
+  min-width: 38px;
+  width: auto;
   height: 38px;
+  padding: 0 12px;
+  grid-auto-flow: column;
+  gap: 6px;
 }
 
 .reader-page-actions button:disabled {
@@ -3812,6 +3850,89 @@ progress {
   text-transform: uppercase;
 }
 
+.staff-row {
+  align-items: start;
+}
+
+.staff-row p {
+  grid-column: 1 / -1;
+  color: #6f6b62;
+}
+
+.staff-row select {
+  min-width: 150px;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.admin-access-profile {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 18px;
+}
+
+.admin-profile-card,
+.admin-permission-card {
+  border: 1px solid #e3ded2;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(46, 40, 30, 0.08);
+}
+
+.admin-profile-card {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-profile-card h2,
+.admin-permission-card h2 {
+  margin: 0 0 8px;
+}
+
+.admin-permission-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-permission-list span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f4a43;
+  font-weight: 800;
+}
+
+.snippet-text {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.snippet-text span {
+  color: #777166;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.snippet-text code {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e1dacd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #2f2a24;
+  background: #f8f5ef;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .status-published {
   background: #eefaf8;
   color: #146b66;
@@ -4062,6 +4183,7 @@ progress {
   .hero-carousel,
   .detail-layout,
   .reader-main,
+  .admin-access-profile,
   .admin-two-col {
     grid-template-columns: 1fr;
   }

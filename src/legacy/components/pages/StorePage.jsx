@@ -113,6 +113,11 @@ function StorePage({
                 </article>
               )
             })}
+            {!pagedBooks.length && (
+              <div className="empty-state">
+                No for-sale books match this filter. Admin can publish books with the For sale target from the dashboard.
+              </div>
+            )}
           </div>
 
           <nav className="pagination" aria-label="Store pagination">
@@ -162,7 +167,7 @@ export function getBookPrice(book) {
 }
 
 export function formatCurrency(value) {
-  return `${value.toLocaleString('vi-VN')}đ`
+  return `${value.toLocaleString('vi-VN')} VND`
 }
 
 export default StorePage
