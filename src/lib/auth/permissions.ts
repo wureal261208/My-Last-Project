@@ -33,5 +33,5 @@ export function canEditBook(role: AppRole, ownerUid?: string, uid?: string) {
 }
 
 export function canReadPremium(accountType: AccountType, role: AppRole) {
-  return role === "admin" || role === "manager" || role === "employee" || accountType === "vip";
+  return role === "admin" || role === "manager" || role === "employee" || accountType === "worm";
 }

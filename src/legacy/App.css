@@ -914,7 +914,9 @@ textarea {
 }
 
 .book-access-tag.for-sale,
-.admin-status.status-for-sale {
+.book-access-tag.for-rent,
+.admin-status.status-for-sale,
+.admin-status.status-for-rent {
   border-color: #c8d6f1;
   color: #183d74;
   background: #edf4ff;
@@ -4687,6 +4689,7 @@ progress {
 }
 
 .vip-badge,
+.worm-badge,
 .normal-badge {
   display: inline-flex;
   width: fit-content;
@@ -4698,7 +4701,8 @@ progress {
   text-transform: uppercase;
 }
 
-.vip-badge {
+.vip-badge,
+.worm-badge {
   background: #111;
   color: #f8e7a2;
 }
@@ -4816,6 +4820,43 @@ progress {
   padding-top: 14px;
 }
 
+.rental-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rental-status-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f4f0e8;
+  color: #5b5142;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.rental-status-pill.status-pending,
+.admin-status.status-pending {
+  background: #fff7e8;
+  color: #946200;
+}
+
+.rental-status-pill.status-delivered,
+.admin-status.status-delivered {
+  background: #edf4ff;
+  color: #183d74;
+}
+
+.rental-status-pill.status-received,
+.admin-status.status-received {
+  background: #ecfdf3;
+  color: #16803c;
+}
+
 .checkout-button {
   width: 100%;
 }
@@ -4852,7 +4893,8 @@ progress {
   padding: 22px;
 }
 
-.vip-notice i {
+.vip-notice i,
+.vip-notice svg {
   color: #22706c;
   font-size: 30px;
 }
@@ -4870,6 +4912,27 @@ progress {
   justify-content: space-between;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   padding-bottom: 8px;
+}
+
+.rental-dashboard-row {
+  flex-wrap: wrap;
+}
+
+.rental-request-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.65fr) minmax(140px, 0.45fr) auto;
+}
+
+.rental-request-row span {
+  display: grid;
+  gap: 6px;
+}
+
+.rental-request-row p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #946200;
+  font-size: 13px;
+  font-weight: 850;
 }
 
 @media (max-width: 900px) {

@@ -109,7 +109,7 @@ function HomePage({ books, favorites, onDetail, onFavorite, onRead, progress = {
           </div>
           <div className="section-actions">
             <button className="ghost-button" onClick={() => setPage('store')} type="button">
-              Open store
+              Rent books
             </button>
             <button className="ghost-button" onClick={() => setPage('discover')} type="button">
               View library
@@ -129,13 +129,13 @@ function HomePage({ books, favorites, onDetail, onFavorite, onRead, progress = {
 
       <section className="promo-strip">
         <div>
-          <p className="mono-eyebrow">VIP deal</p>
-          <h2>Buy more books with automatic coupons.</h2>
-          <p>VIP accounts receive discount vouchers and a visible VIP tag across the system.</p>
+          <p className="mono-eyebrow">Worm perks</p>
+          <h2>Rent more books with Worm account benefits.</h2>
+          <p>Worm accounts receive higher rental limits, private offers, and a visible Worm tag across the system.</p>
         </div>
         <button className="primary-button" onClick={() => setPage('promotions')} type="button">
           <i className="bi bi-stars" />
-          View VIP offers
+          View Worm offers
         </button>
       </section>
 

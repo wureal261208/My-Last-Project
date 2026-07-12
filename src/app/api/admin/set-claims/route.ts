@@ -4,7 +4,7 @@ import { isSeedAdmin } from "@/config/admin";
 import type { AccountType, AppRole } from "@/types/auth";
 
 const allowedRoles: AppRole[] = ["admin", "manager", "employee", "anonymous"];
-const allowedAccountTypes: AccountType[] = ["vip", "normal"];
+const allowedAccountTypes: AccountType[] = ["worm", "normal"];
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");

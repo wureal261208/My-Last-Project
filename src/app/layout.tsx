@@ -5,7 +5,7 @@ import "@/legacy/App.css";
 
 export const metadata: Metadata = {
   title: "The Final Book Project",
-  description: "A Firebase + Next.js platform for reading and selling ebooks."
+  description: "A Firebase + Next.js online library for reading and renting books."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

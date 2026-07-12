@@ -8,6 +8,7 @@ export const globalDataDefaults = {
   comments: {},
   staff: [],
   knownUsers: [],
+  rentalRequests: [],
 }
 
 export const userDataDefaults = {

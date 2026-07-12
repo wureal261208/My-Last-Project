@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CheckCircle, Clock, Truck } from 'lucide-react'
 import { getInitials } from '../../utils/bookUtils'
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
@@ -12,7 +13,7 @@ function ProfilePage({
   fontScale,
   onProfileUpdate,
   onResetPassword,
-  purchaseHistory = [],
+  rentalRequests = [],
   readerTheme,
   setFontScale,
   setReaderTheme,
@@ -26,7 +27,7 @@ function ProfilePage({
         fontScale={fontScale}
         onProfileUpdate={onProfileUpdate}
         onResetPassword={onResetPassword}
-        purchaseHistory={purchaseHistory}
+        rentalRequests={rentalRequests}
         readerTheme={readerTheme}
         setFontScale={setFontScale}
         setReaderTheme={setReaderTheme}
@@ -42,7 +43,7 @@ function ProfileSettings({
   fontScale,
   onProfileUpdate,
   onResetPassword,
-  purchaseHistory,
+  rentalRequests,
   readerTheme,
   setFontScale,
   setReaderTheme,
@@ -122,8 +123,8 @@ function ProfileSettings({
         <div className="settings-mini-profile">
           <span>{avatarPreview ? <img src={avatarPreview} alt="" /> : getInitials(displayName)}</span>
           <strong>{displayName || account.name}</strong>
-          <small className={account.accountType === 'vip' ? 'vip-badge' : 'normal-badge'}>
-            {account.accountType === 'vip' ? 'VIP' : 'Normal'}
+          <small className={account.accountType === 'worm' || account.accountType === 'vip' ? 'worm-badge' : 'normal-badge'}>
+            {account.accountType === 'worm' || account.accountType === 'vip' ? 'Worm' : 'Normal'}
           </small>
         </div>
       </div>
@@ -134,28 +135,32 @@ function ProfileSettings({
           <SnippetText label="Email" value={account.email} />
           <SnippetText label="Account ID" value={account.id || 'Local account'} />
           <p className="settings-copy">
-            Current account type: <strong>{account.accountType === 'vip' ? 'VIP' : 'Normal'}</strong>
+            Current account type: <strong>{account.accountType === 'worm' || account.accountType === 'vip' ? 'Worm' : 'Normal'}</strong>
           </p>
           <p className="settings-copy">
-            {account.accountType === 'vip'
-              ? 'VIP coupons and tags are active for this account.'
-              : 'Normal accounts can buy and read books without VIP coupons.'}
+            {account.accountType === 'worm' || account.accountType === 'vip'
+              ? 'Worm rental perks, higher rental limits, and tags are active for this account.'
+              : 'Normal accounts can rent books within the standard limit.'}
           </p>
         </div>
 
         <div className="account-settings-card purchase-history-card">
-          <SettingsHeading icon="bi-receipt" kicker="Orders" title="Purchase history" />
-          {purchaseHistory.length ? (
+          <SettingsHeading icon="bi-truck" kicker="Rental dashboard" title="Delivery progress" />
+          {rentalRequests.length ? (
             <div className="purchase-list">
-              {purchaseHistory.slice(0, 8).map((item) => (
-                <div className="purchase-row" key={`${item.id}-${item.purchasedAt}`}>
+              {rentalRequests.slice(0, 8).map((item) => (
+                <div className="purchase-row rental-dashboard-row" key={item.id}>
                   <span>{item.title}</span>
-                  <small>{new Date(item.purchasedAt).toLocaleDateString('en-US')}</small>
+                  <small>{item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString('vi-VN') : 'Chưa có ngày giao'}</small>
+                  <strong className={`rental-status-pill status-${item.status}`}>
+                    {getRentalIcon(item.status)}
+                    {formatRentalStatus(item.status)}
+                  </strong>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="settings-copy">No purchases yet. Buy books in the Store to build your library.</p>
+            <p className="settings-copy">No rental requests yet. Rent books from the library to track delivery here.</p>
           )}
         </div>
 
@@ -265,6 +270,22 @@ function SettingsHeading({ icon, kicker, title }) {
       </div>
     </div>
   )
+}
+
+function getRentalIcon(status) {
+  if (status === 'delivered') return <Truck size={15} aria-hidden="true" />
+  if (status === 'received') return <CheckCircle size={15} aria-hidden="true" />
+  return <Clock size={15} aria-hidden="true" />
+}
+
+function formatRentalStatus(status) {
+  const labels = {
+    pending: 'Pending',
+    delivered: 'Đã giao',
+    received: 'Đã nhận',
+  }
+
+  return labels[status] || status
 }
 
 function SnippetText({ label, value }) {

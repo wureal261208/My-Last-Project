@@ -22,7 +22,7 @@ const languageChoices = [
 const adminBookFilters = [
   { id: 'all', label: 'All books' },
   { id: 'free-to-read', label: 'Free-to-read' },
-  { id: 'for-sale', label: 'For-sale' },
+  { id: 'for-rent', label: 'For-rent' },
   { id: 'reader-ready', label: 'Ready for Reader' },
   { id: 'missing-cover', label: 'Missing Cover' },
   { id: 'missing-chapters', label: 'Missing Chapters' },
@@ -36,24 +36,27 @@ function AdminPage({
   editLocalBook,
   localBooks,
   removeLocalBook,
+  rentalRequests = [],
   resetAdminBook,
   setAdminBook,
   setStaff,
   staff,
+  updateRentalStatus,
   users,
 }) {
-  const [activeAdminSection, setActiveAdminSection] = useState('book')
+  const [activeAdminSection, setActiveAdminSection] = useState(account.role === 'employee' ? 'rentals' : 'book')
   const [bookFilter, setBookFilter] = useState('all')
   const [showPreview, setShowPreview] = useState(false)
   const publishedBooks = localBooks.filter((book) => (book.status || 'published') === 'published').length
   const freeBooks = localBooks.filter((book) => getBookAccessType(book) === 'free-to-read').length
-  const saleBooks = localBooks.filter((book) => getBookAccessType(book) === 'for-sale').length
+  const rentalBooks = localBooks.filter((book) => getBookAccessType(book) === 'for-rent').length
+  const pendingRentals = rentalRequests.filter((request) => request.status === 'pending').length
   const currentWarnings = getFormWarnings(adminBook)
   const previewBook = useMemo(() => createPreviewBook(adminBook), [adminBook])
   const filteredLocalBooks = localBooks.filter((book) => {
     if (bookFilter === 'reader-ready') return isReaderReady(book)
     if (bookFilter === 'free-to-read') return getBookAccessType(book) === 'free-to-read'
-    if (bookFilter === 'for-sale') return getBookAccessType(book) === 'for-sale'
+    if (bookFilter === 'for-rent') return getBookAccessType(book) === 'for-rent'
     if (bookFilter === 'missing-cover') return !hasCover(book)
     if (bookFilter === 'missing-chapters') return !hasChapters(book)
     return true
@@ -132,25 +135,66 @@ function AdminPage({
 
       <AdminAccessProfile account={account} permissions={permissions} />
 
-      <div className="admin-sticky-switcher" role="tablist" aria-label="Admin sections">
-        <button className={activeAdminSection === 'book' ? 'active' : ''} onClick={() => setActiveAdminSection('book')} type="button">
-          <i className="bi bi-journal-plus" />
-          Push Book
-        </button>
-        <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
-          <i className="bi bi-person-plus" />
-          Team
-        </button>
-      </div>
+      {account.role !== 'employee' && (
+        <div className="admin-sticky-switcher" role="tablist" aria-label="Admin sections">
+          <button className={activeAdminSection === 'book' ? 'active' : ''} onClick={() => setActiveAdminSection('book')} type="button">
+            <i className="bi bi-journal-plus" />
+            Push Book
+          </button>
+          {account.role === 'admin' && (
+            <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
+              <i className="bi bi-person-plus" />
+              Team
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="metrics admin-metrics">
         <article><strong>{books.length}</strong><span>Books on main</span></article>
         <article><strong>{publishedBooks}</strong><span>Published admin books</span></article>
         <article><strong>{freeBooks}</strong><span>Free-to-read books</span></article>
-        <article><strong>{saleBooks}</strong><span>For-sale books</span></article>
+        <article><strong>{rentalBooks}</strong><span>Rental books</span></article>
+        <article><strong>{pendingRentals}</strong><span>Pending rentals</span></article>
       </div>
 
-      {activeAdminSection === 'book' ? (
+      <section className="admin-workspace rental-approval-panel">
+        <div className="section-heading">
+          <div>
+            <p className="mono-eyebrow">Rental approval</p>
+            <h2>Approve and track delivery</h2>
+          </div>
+          <span>Admin, Manager, and Employee can approve books for delivery.</span>
+        </div>
+        <div className="admin-table">
+          <h2>Rental requests</h2>
+          {rentalRequests.length ? (
+            rentalRequests.map((request) => (
+              <div className="table-row rental-request-row" key={request.id}>
+                <span>
+                  {request.title}
+                  <em className={`admin-status status-${request.status}`}>{formatRentalStatus(request.status)}</em>
+                </span>
+                <small>{request.userName} - {request.userEmail}</small>
+                <small>{request.deliveryDate ? `Delivery: ${new Date(request.deliveryDate).toLocaleDateString('vi-VN')}` : 'Delivery date pending'}</small>
+                <div className="admin-row-actions">
+                  <button className="ghost-button" disabled={request.status !== 'pending'} onClick={() => updateRentalStatus(request.id, 'delivered')} type="button">
+                    Approve delivery
+                  </button>
+                  <button className="ghost-button" disabled={request.status === 'received'} onClick={() => updateRentalStatus(request.id, 'received')} type="button">
+                    Mark received
+                  </button>
+                </div>
+                {request.adminNotification && account.role === 'admin' && <p>{request.adminNotification}</p>}
+              </div>
+            ))
+          ) : (
+            <p>No rental requests yet.</p>
+          )}
+        </div>
+      </section>
+
+      {account.role !== 'employee' && activeAdminSection === 'book' ? (
         <section className="admin-workspace">
           <div className="section-heading">
             <div>
@@ -195,7 +239,7 @@ function AdminPage({
                 Publish target
                 <select value={adminBook.accessType || 'free-to-read'} onChange={(event) => updateAdminBook('accessType', event.target.value)}>
                   <option value="free-to-read">Free-to-read library</option>
-                  <option value="for-sale">For-sale store</option>
+                  <option value="for-rent">For-rent library</option>
                 </select>
               </label>
               <label>
@@ -379,14 +423,14 @@ function AdminPage({
             </section>
           </div>
         </section>
-      ) : (
+      ) : account.role !== 'employee' ? (
         <section className="admin-workspace">
           <div className="section-heading">
             <div>
               <p className="mono-eyebrow">Team access</p>
               <h2>Co-op manager / employee</h2>
             </div>
-              <span>Admin controls two managers: one for free reader books and one for sale books.</span>
+              <span>Admin controls managers for reader books and rental books.</span>
             </div>
 
           <form className="admin-form compact-form" onSubmit={addStaff}>
@@ -406,7 +450,7 @@ function AdminPage({
               Specialty
               <select name="specialty" defaultValue="free-to-read">
                 <option value="free-to-read">Reading books manager</option>
-                <option value="for-sale">Sale books manager</option>
+                <option value="for-rent">Rental books manager</option>
               </select>
             </label>
             <label>
@@ -420,7 +464,7 @@ function AdminPage({
             </label>
             <label className="wide-field">
               Employee task report
-              <input name="taskSummary" placeholder="Imported chapters, checked covers, prepared sale metadata..." />
+              <input name="taskSummary" placeholder="Imported chapters, checked covers, prepared rental metadata..." />
             </label>
             <button className="primary-button" type="submit">Create account</button>
           </form>
@@ -433,11 +477,11 @@ function AdminPage({
                   <div className="table-row staff-row" key={member.email}>
                     <span>{member.name}</span>
                     <SnippetText label="Email" value={member.email} />
-                    <strong>{member.specialty === 'for-sale' ? 'Sale books manager' : 'Reading books manager'}</strong>
+                    <strong>{member.specialty === 'for-rent' || member.specialty === 'for-sale' ? 'Rental books manager' : 'Reading books manager'}</strong>
                     <div className="admin-row-actions">
                       <select value={member.specialty || 'free-to-read'} onChange={(event) => updateStaff(member.email, { specialty: event.target.value })}>
                         <option value="free-to-read">Reading books</option>
-                        <option value="for-sale">Sale books</option>
+                        <option value="for-rent">Rental books</option>
                       </select>
                       <button className="ghost-button" onClick={() => updateStaff(member.email, { role: 'employee' })} type="button">Make employee</button>
                       <button className="ghost-button" onClick={() => removeStaff(member.email)} type="button">Delete</button>
@@ -445,7 +489,7 @@ function AdminPage({
                   </div>
                 ))
               ) : (
-                <p>No manager accounts yet. Create one manager for reading books and one for sale books.</p>
+                <p>No manager accounts yet. Create one manager for reading books and one for rental books.</p>
               )}
             </section>
 
@@ -491,7 +535,7 @@ function AdminPage({
             </section>
           </div>
         </section>
-      )}
+      ) : null}
 
       {showPreview && <AdminDetailPreview book={previewBook} onClose={() => setShowPreview(false)} />}
     </div>
@@ -506,8 +550,8 @@ function AdminAccessProfile({ account = {}, permissions = [] }) {
           <p className="mono-eyebrow">Signed-in profile</p>
           <h2>{account.name || 'Staff account'}</h2>
           <span className={`admin-status status-${account.role || 'employee'}`}>{account.role || 'employee'}</span>
-          <span className={account.accountType === 'vip' ? 'vip-badge' : 'normal-badge'}>
-            {account.accountType === 'vip' ? 'VIP' : 'Normal'}
+          <span className={account.accountType === 'worm' || account.accountType === 'vip' ? 'worm-badge' : 'normal-badge'}>
+            {account.accountType === 'worm' || account.accountType === 'vip' ? 'Worm' : 'Normal'}
           </span>
         </div>
         <SnippetText label="Email" value={account.email || 'No email available'} />
@@ -542,7 +586,7 @@ function SnippetText({ label, value }) {
 function getAdminPermissions(account = {}) {
   if (account.role === 'admin') {
     return [
-      'Publish, edit, and remove reader/store books',
+      'Publish, edit, remove, and approve reader/rental books',
       'Create, delete, and promote managers',
       'Assign employees and review task reports',
       'View staff profile and permission metadata',
@@ -551,17 +595,29 @@ function getAdminPermissions(account = {}) {
 
   if (account.role === 'manager') {
     return [
-      'Review assigned book workflow',
+      'Add, remove, and approve reader/rental books',
       'Track employees assigned by admin',
+      'Notify Admin on important edits',
       'View profile and permission metadata',
     ]
   }
 
   return [
+    'Approve rental books for delivery',
     'View assigned work profile',
-    'Review personal task report state',
+    'Notify Admin on important actions',
     'View profile and permission metadata',
   ]
+}
+
+function formatRentalStatus(status) {
+  const labels = {
+    pending: 'Pending',
+    delivered: 'Đã giao',
+    received: 'Đã nhận',
+  }
+
+  return labels[status] || status
 }
 
 function AdminDetailPreview({ book, onClose }) {
@@ -606,7 +662,7 @@ function createPreviewBook(adminBook) {
     category: adminBook.category.trim() || 'Admin pick',
     authors: [{ name: adminBook.author.trim() || 'BookWorm editor' }],
     bookshelves: [adminBook.category.trim() || 'Admin pick'],
-    accessType: adminBook.accessType === 'for-sale' ? 'for-sale' : 'free-to-read',
+    accessType: adminBook.accessType === 'for-rent' || adminBook.accessType === 'for-sale' ? 'for-rent' : 'free-to-read',
     subjects,
     languages: ['en'],
     pageCount: chapters.reduce((total, chapter) => total + chapter.pages, 0) || 120,

@@ -24,7 +24,7 @@ function DetailHero({
       <div className="detail-copy">
         <div className="detail-title-tags">
           <p className="mono-eyebrow">{getCategory(book)}</p>
-          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-sale' ? 'For sale' : 'Free to read'}</span>
+          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-rent' ? 'For rent' : 'Free to read'}</span>
         </div>
         <h1>{book.title}</h1>
         <p className="detail-author">{getAuthor(book)}</p>

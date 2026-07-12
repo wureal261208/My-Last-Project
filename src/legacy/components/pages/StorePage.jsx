@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { BookOpen, CheckCircle, Clock, Search, Truck } from 'lucide-react'
 import { getAuthor, getCategory, getCover } from '../../utils/bookUtils'
 
 const STORE_PAGE_SIZE = 10
@@ -6,21 +7,26 @@ const STORE_PAGE_SIZE = 10
 function StorePage({
   account,
   books,
-  cartItems,
+  rentalBasket = [],
+  rentalLimit = 3,
+  rentalRequests = [],
   onAddToCart,
   onCheckout,
   onDetail,
   onRead,
-  purchaseHistory,
   query,
   setQuery,
 }) {
   const [page, setPage] = useState(1)
   const [category, setCategory] = useState('all')
   const isAnonymous = account?.role === 'anonymous'
-  const isVip = account?.accountType === 'vip'
+  const isWorm = account?.accountType === 'worm' || account?.accountType === 'vip'
   const normalizedQuery = query.trim().toLowerCase()
   const categories = useMemo(() => ['all', ...new Set(books.map(getCategory).slice(0, 14))], [books])
+  const activeRentals = rentalRequests.filter((item) => item.status !== 'received')
+  const activeRentalIds = new Set(activeRentals.map((item) => item.bookId))
+  const basketIds = new Set(rentalBasket.map((item) => item.id))
+  const remainingSlots = Math.max(0, rentalLimit - activeRentals.length - rentalBasket.length)
   const filteredBooks = useMemo(() => {
     return books.filter((book) => {
       const matchesQuery =
@@ -34,10 +40,6 @@ function StorePage({
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / STORE_PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pagedBooks = filteredBooks.slice((safePage - 1) * STORE_PAGE_SIZE, safePage * STORE_PAGE_SIZE)
-  const subtotal = cartItems.reduce((sum, item) => sum + getBookPrice(item), 0)
-  const discount = isVip ? Math.round(subtotal * 0.15) : 0
-  const total = Math.max(0, subtotal - discount)
-  const purchasedIds = new Set(purchaseHistory.map((item) => item.id))
 
   function changeCategory(nextCategory) {
     setCategory(nextCategory)
@@ -48,17 +50,19 @@ function StorePage({
     <div className="store-page commerce-page">
       <section className="commerce-hero">
         <div>
-          <p className="mono-eyebrow">Book store</p>
-          <h1>Buy books, keep them in your library, read anywhere.</h1>
+          <p className="mono-eyebrow">Online rental library</p>
+          <h1>Rent books, wait for approval, then track delivery.</h1>
           <p>
-            Anonymous visitors can preview books. Normal accounts can buy and read. VIP accounts get coupons, special tags,
-            and a better checkout deal.
+            Anonymous visitors can preview books. Normal accounts can rent a limited number of books. Worm accounts get a
+            higher rental limit and private rental offers.
           </p>
         </div>
         <aside className="commerce-status-card">
-          <span className={isVip ? 'vip-badge' : 'normal-badge'}>{isVip ? 'VIP account' : isAnonymous ? 'Anonymous' : 'Normal account'}</span>
-          <strong>{isAnonymous ? 'Preview only' : `${cartItems.length} item${cartItems.length === 1 ? '' : 's'} in cart`}</strong>
-          <small>{isVip ? '15% VIP coupon auto-applied.' : isAnonymous ? 'Login before checkout.' : 'Ready for secure checkout.'}</small>
+          <span className={isWorm ? 'worm-badge' : 'normal-badge'}>
+            {isWorm ? 'Worm account' : isAnonymous ? 'Anonymous' : 'Normal account'}
+          </span>
+          <strong>{isAnonymous ? 'Preview only' : `${remainingSlots} rental slot${remainingSlots === 1 ? '' : 's'} left`}</strong>
+          <small>{isWorm ? 'Worm rental perks are active.' : isAnonymous ? 'Login before renting.' : `Rental limit: ${rentalLimit} books.`}</small>
         </aside>
       </section>
 
@@ -66,7 +70,7 @@ function StorePage({
         <div className="store-main">
           <form className="store-toolbar" onSubmit={(event) => event.preventDefault()}>
             <label>
-              <i className="bi bi-search" />
+              <Search size={18} aria-hidden="true" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books or authors..." />
             </label>
             <div className="topic-row">
@@ -80,8 +84,9 @@ function StorePage({
 
           <div className="store-list">
             {pagedBooks.map((book) => {
-              const price = getBookPrice(book)
-              const isPurchased = purchasedIds.has(book.id)
+              const isActiveRental = activeRentalIds.has(book.id)
+              const isInBasket = basketIds.has(book.id)
+
               return (
                 <article className="store-book-row" key={book.id}>
                   <button className="store-cover" onClick={() => onDetail(book)} type="button">
@@ -91,19 +96,24 @@ function StorePage({
                     <span className="category">{getCategory(book)}</span>
                     <h2>{book.title}</h2>
                     <p>{getAuthor(book)}</p>
-                    <small>{isPurchased ? 'Already in your library' : 'One-time purchase · online reader included'}</small>
+                    <small>
+                      {isActiveRental
+                        ? 'Already in your rental dashboard'
+                        : isInBasket
+                          ? 'Ready to submit for approval'
+                          : 'Rental request requires staff approval'}
+                    </small>
                   </div>
                   <div className="store-actions">
-                    <strong>{formatCurrency(price)}</strong>
-                    {isPurchased ? (
+                    {isActiveRental ? (
                       <button className="primary-button" onClick={() => onRead(book)} type="button">
-                        <i className="bi bi-journal-text" />
+                        <BookOpen size={16} aria-hidden="true" />
                         Read
                       </button>
                     ) : (
-                      <button className="primary-button" onClick={() => onAddToCart(book)} type="button">
-                        <i className="bi bi-cart-plus" />
-                        {isAnonymous ? 'Login to buy' : 'Add'}
+                      <button className="primary-button" disabled={isInBasket} onClick={() => onAddToCart(book)} type="button">
+                        <BookOpen size={16} aria-hidden="true" />
+                        {isAnonymous ? 'Login to rent' : isInBasket ? 'Selected' : 'Rent'}
                       </button>
                     )}
                     <button className="ghost-button" onClick={() => onDetail(book)} type="button">
@@ -115,7 +125,7 @@ function StorePage({
             })}
             {!pagedBooks.length && (
               <div className="empty-state">
-                No for-sale books match this filter. Admin can publish books with the For sale target from the dashboard.
+                No rental books match this filter. Admin can publish books with the For rent target from the dashboard.
               </div>
             )}
           </div>
@@ -130,30 +140,33 @@ function StorePage({
         <aside className="cart-panel">
           <div className="section-heading">
             <div>
-              <p className="mono-eyebrow">Cart</p>
-              <h2>Checkout</h2>
+              <p className="mono-eyebrow">Rental request</p>
+              <h2>Pending approval</h2>
             </div>
           </div>
-          {cartItems.length ? (
+          {rentalBasket.length ? (
             <div className="cart-items">
-              {cartItems.map((item) => (
+              {rentalBasket.map((item) => (
                 <div className="cart-item" key={item.id}>
                   <span>{item.title}</span>
-                  <strong>{formatCurrency(getBookPrice(item))}</strong>
+                  <strong>Pending</strong>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="empty-cart">Your cart is empty.</p>
+            <p className="empty-cart">No rental request selected.</p>
           )}
-          <div className="cart-totals">
-            <span>Subtotal <strong>{formatCurrency(subtotal)}</strong></span>
-            <span>VIP discount <strong>-{formatCurrency(discount)}</strong></span>
-            <span>Total <strong>{formatCurrency(total)}</strong></span>
+          <div className="rental-status-list">
+            {rentalRequests.slice(0, 4).map((item) => (
+              <span className={`rental-status-pill status-${item.status}`} key={item.id}>
+                {getRentalIcon(item.status)}
+                {formatRentalStatus(item.status)}
+              </span>
+            ))}
           </div>
-          <button className="primary-button checkout-button" disabled={!cartItems.length} onClick={onCheckout} type="button">
-            <i className="bi bi-credit-card" />
-            {isAnonymous ? 'Login required' : 'Pay now'}
+          <button className="primary-button checkout-button" disabled={!rentalBasket.length} onClick={onCheckout} type="button">
+            <Clock size={16} aria-hidden="true" />
+            {isAnonymous ? 'Login required' : 'Submit rental'}
           </button>
         </aside>
       </section>
@@ -161,13 +174,20 @@ function StorePage({
   )
 }
 
-export function getBookPrice(book) {
-  const seed = Number(String(book.id).replace(/\D/g, '').slice(-3)) || 99
-  return Math.max(29000, (seed % 8) * 10000 + 39000)
+function getRentalIcon(status) {
+  if (status === 'delivered') return <Truck size={15} aria-hidden="true" />
+  if (status === 'received') return <CheckCircle size={15} aria-hidden="true" />
+  return <Clock size={15} aria-hidden="true" />
 }
 
-export function formatCurrency(value) {
-  return `${value.toLocaleString('vi-VN')} VND`
+function formatRentalStatus(status) {
+  const labels = {
+    pending: 'Pending',
+    delivered: 'Đã giao',
+    received: 'Đã nhận',
+  }
+
+  return labels[status] || status
 }
 
 export default StorePage

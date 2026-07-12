@@ -25,15 +25,15 @@ export function getCategory(book) {
 
 export function getBookAccessType(book = {}) {
   const configuredType = book.accessType || book.access_type || book.publishTarget || book.publish_target || book.commerceType
-  if (configuredType === 'for-sale' || configuredType === 'sale') return 'for-sale'
+  if (configuredType === 'for-rent' || configuredType === 'rent' || configuredType === 'for-sale' || configuredType === 'sale') return 'for-rent'
   if (configuredType === 'free-to-read' || configuredType === 'free') return 'free-to-read'
 
   const numericSeed = Number(String(book.id || '').replace(/\D/g, '').slice(-2))
-  return Number.isFinite(numericSeed) && numericSeed % 3 === 0 ? 'for-sale' : 'free-to-read'
+  return Number.isFinite(numericSeed) && numericSeed % 3 === 0 ? 'for-rent' : 'free-to-read'
 }
 
 export function isBookForSale(book) {
-  return getBookAccessType(book) === 'for-sale'
+  return getBookAccessType(book) === 'for-rent'
 }
 
 export function getBookRating(book = {}) {

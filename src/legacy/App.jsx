@@ -113,8 +113,8 @@ function App() {
   const [authForm, setAuthForm] = useState(emptyAuthForm)
   const [adminBook, setAdminBook] = useState(emptyAdminBook)
   const [knownUsers, setKnownUsers] = useState(globalDataDefaults.knownUsers)
-  const [cartItems, setCartItems] = useState([])
-  const [purchaseHistory, setPurchaseHistory] = useState([])
+  const [rentalBasket, setRentalBasket] = useState([])
+  const [rentalRequests, setRentalRequests] = useState(globalDataDefaults.rentalRequests)
   const [globalDataReady, setGlobalDataReady] = useState(false)
   const [userDataReady, setUserDataReady] = useState(false)
   const accountSettingsRef = useRef(accountSettings)
@@ -166,8 +166,9 @@ function App() {
       comments,
       staff,
       knownUsers,
+      rentalRequests,
     }),
-    [bookReaders, comments, knownUsers, localBooks, staff, viewCounts],
+    [bookReaders, comments, knownUsers, localBooks, rentalRequests, staff, viewCounts],
   )
 
   const userData = useMemo(
@@ -219,6 +220,7 @@ function App() {
           comments: data.comments || {},
           staff: data.staff || [],
           knownUsers: data.knownUsers || [],
+          rentalRequests: data.rentalRequests || [],
         }
 
         globalDataSnapshotRef.current = stableStringify(nextData)
@@ -228,6 +230,7 @@ function App() {
         setComments(nextData.comments)
         setStaff(nextData.staff)
         setKnownUsers(nextData.knownUsers)
+        setRentalRequests(nextData.rentalRequests)
         setGlobalDataReady(true)
       },
       (error) => {
@@ -339,7 +342,7 @@ function App() {
         email,
         avatar: savedSettings.avatar || user.photoURL || '',
         role: getAccountRole(user.uid, email),
-        accountType: savedSettings.accountType || 'normal',
+        accountType: normalizeAccountType(savedSettings.accountType),
       }
 
       setAccount(nextAccount)
@@ -410,7 +413,7 @@ function App() {
   )
   const allBooks = useMemo(() => normalizeBookAccess([...publishedLocalBooks, ...books]), [books, publishedLocalBooks])
   const freeReadBooks = useMemo(() => allBooks.filter((book) => getBookAccessType(book) === 'free-to-read'), [allBooks])
-  const saleBooks = useMemo(() => allBooks.filter((book) => getBookAccessType(book) === 'for-sale'), [allBooks])
+  const rentableBooks = useMemo(() => allBooks.filter((book) => getBookAccessType(book) === 'for-rent'), [allBooks])
   const topics = useMemo(() => ['all', ...new Set(allBooks.map(getCategory).slice(0, 12))], [allBooks])
   const filteredBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -632,41 +635,87 @@ function App() {
     )
   }
 
-  function addToCart(book) {
+  function requestRental(book) {
     if (account.role === 'anonymous') {
-      setToast({ type: 'error', message: 'Anonymous accounts can preview only. Please login before buying books.' })
+      setToast({ type: 'error', message: 'Anonymous accounts can preview only. Please login before renting books.' })
       navigateTo('auth')
       return
     }
 
-    setCartItems((current) => (current.some((item) => item.id === book.id) ? current : [...current, book]))
-    setToast({ type: 'success', message: `${book.title} added to cart.` })
+    const limit = getRentalLimit(account)
+    const activeRentals = rentalRequests.filter((request) => request.userId === account.id && request.status !== 'received')
+    const alreadyRequested = activeRentals.some((request) => request.bookId === book.id)
+    const alreadyInBasket = rentalBasket.some((item) => item.id === book.id)
+
+    if (alreadyRequested || alreadyInBasket) {
+      setToast({ type: 'error', message: 'This book is already in your rental dashboard.' })
+      return
+    }
+
+    if (activeRentals.length + rentalBasket.length >= limit) {
+      setToast({ type: 'error', message: `Rental limit reached. ${account.accountType === 'worm' ? 'Worm' : 'Normal'} accounts can rent up to ${limit} books.` })
+      return
+    }
+
+    setRentalBasket((current) => (current.some((item) => item.id === book.id) ? current : [...current, book]))
+    setToast({ type: 'success', message: `${book.title} added to rental request.` })
   }
 
-  function checkoutCart() {
+  function submitRentalRequest() {
     if (account.role === 'anonymous') {
-      setToast({ type: 'error', message: 'Login is required before checkout.' })
+      setToast({ type: 'error', message: 'Login is required before renting books.' })
       navigateTo('auth')
       return
     }
 
-    if (!cartItems.length) return
+    if (!rentalBasket.length) return
 
-    setPurchaseHistory((current) => [
-      ...cartItems.map((book) => ({
-        id: book.id,
+    const requestedAt = new Date().toISOString()
+    setRentalRequests((current) => [
+      ...rentalBasket.map((book) => ({
+        id: `rent-${account.id}-${book.id}-${Date.now()}`,
+        bookId: book.id,
         title: book.title,
-        purchasedAt: new Date().toISOString(),
+        userId: account.id,
+        userName: account.name,
+        userEmail: account.email,
+        requestedAt,
+        deliveryDate: '',
+        status: 'pending',
       })),
       ...current,
     ])
-    setHistory((current) => [...cartItems.map((book) => book.id), ...current].slice(0, 20))
-    setCartItems([])
+    setRentalBasket([])
     setToast({
       type: 'success',
-      message: account.accountType === 'vip' ? 'Checkout complete. VIP discount applied.' : 'Checkout complete. Books added to your library.',
+      message: 'Rental request sent. Status is Pending until staff approval.',
     })
     navigateTo('profile')
+  }
+
+  function updateRentalStatus(requestId, status) {
+    if (!['admin', 'manager', 'employee'].includes(account.role)) return
+
+    const deliveryDate = ['delivered', 'received'].includes(status) ? new Date().toISOString().slice(0, 10) : ''
+    setRentalRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status,
+              deliveryDate: deliveryDate || request.deliveryDate,
+              approvedBy: account.name,
+              approvedByRole: account.role,
+              approvedAt: new Date().toISOString(),
+              adminNotification:
+                account.role === 'admin'
+                  ? request.adminNotification
+                  : `${account.role} ${account.name} updated rental ${request.title} to ${status}.`,
+            }
+          : request,
+      ),
+    )
+    setToast({ type: 'success', message: `Rental request updated to ${formatRentalStatus(status)}.` })
   }
 
   function addLocalBook(event) {
@@ -751,13 +800,14 @@ function App() {
     store: (
       <StorePage
         account={account}
-        books={saleBooks}
-        cartItems={cartItems}
-        onAddToCart={addToCart}
-        onCheckout={checkoutCart}
+        books={rentableBooks}
+        rentalBasket={rentalBasket}
+        rentalLimit={getRentalLimit(account)}
+        rentalRequests={rentalRequests.filter((request) => request.userId === account.id)}
+        onAddToCart={requestRental}
+        onCheckout={submitRentalRequest}
         onDetail={openDetail}
         onRead={openBook}
-        purchaseHistory={purchaseHistory}
         query={query}
         setQuery={setQuery}
       />
@@ -856,7 +906,7 @@ function App() {
         onProfileUpdate={updateAccountProfile}
         onRead={openBook}
         onResetPassword={resetAccountPassword}
-        purchaseHistory={purchaseHistory}
+        rentalRequests={rentalRequests.filter((request) => request.userId === account.id)}
         progress={progress}
         readingDays={readingActivity[getAccountKey(account)] || []}
         readerTheme={readerTheme}
@@ -876,11 +926,13 @@ function App() {
         books={allBooks}
         localBooks={localBooks}
         removeLocalBook={(id) => setLocalBooks((current) => current.filter((book) => book.id !== id))}
+        rentalRequests={rentalRequests}
         editLocalBook={editLocalBook}
         resetAdminBook={() => setAdminBook(emptyAdminBook)}
         setAdminBook={setAdminBook}
         setStaff={setStaff}
         staff={staff}
+        updateRentalStatus={updateRentalStatus}
         users={knownUsers}
       />
     ) : null,
@@ -899,11 +951,29 @@ function App() {
 }
 
 function upsertUser(users, user) {
-  const stored = { email: user.email, name: user.name, role: user.role }
+  const stored = { email: user.email, name: user.name, role: user.role, accountType: normalizeAccountType(user.accountType) }
   const existing = users.find((item) => item.email === user.email)
-  if (existing && existing.name === stored.name && existing.role === stored.role) return users
+  if (existing && existing.name === stored.name && existing.role === stored.role && existing.accountType === stored.accountType) return users
 
   return [stored, ...users.filter((item) => item.email !== user.email)]
+}
+
+function normalizeAccountType(accountType) {
+  return accountType === 'worm' || accountType === 'vip' ? 'worm' : 'normal'
+}
+
+function getRentalLimit(account = {}) {
+  return normalizeAccountType(account.accountType) === 'worm' ? 6 : 3
+}
+
+function formatRentalStatus(status) {
+  const labels = {
+    pending: 'Pending',
+    delivered: 'Da giao',
+    received: 'Da nhan',
+  }
+
+  return labels[status] || status
 }
 
 function getAccountKey(account) {
@@ -949,7 +1019,7 @@ function createAdminBookRecord(adminBook) {
   const language = adminBook.language.trim().toLowerCase()
   const author = adminBook.author.trim() || 'BookWorm editor'
   const category = adminBook.category.trim() || 'Admin pick'
-  const accessType = adminBook.accessType === 'for-sale' ? 'for-sale' : 'free-to-read'
+  const accessType = adminBook.accessType === 'for-rent' || adminBook.accessType === 'for-sale' ? 'for-rent' : 'free-to-read'
 
   return {
     ...adminBook,

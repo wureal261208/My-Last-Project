@@ -1,50 +1,52 @@
+import { BookOpen, Star } from 'lucide-react'
+
 function PromotionsPage({ account, onStore }) {
-  const isVip = account?.accountType === 'vip'
-  const coupons = [
-    { code: 'VIP15', title: '15% off all book orders', active: isVip },
-    { code: 'BUNDLE30', title: 'Bundle discount for 3+ books', active: isVip },
-    { code: 'WEEKEND', title: 'Weekend reader reward', active: isVip },
+  const isWorm = account?.accountType === 'worm' || account?.accountType === 'vip'
+  const perks = [
+    { code: 'WORM6', title: 'Rent up to 6 books at the same time', active: isWorm },
+    { code: 'EARLYSHIP', title: 'Priority review for rental delivery', active: isWorm },
+    { code: 'READERDEAL', title: 'Private rental promotions', active: isWorm },
   ]
 
   return (
     <div className="promotions-page commerce-page">
       <section className="commerce-hero vip-hero">
         <div>
-          <p className="mono-eyebrow">VIP promotions</p>
-          <h1>{isVip ? 'Your VIP benefits are active.' : 'Upgrade to VIP for better reading deals.'}</h1>
+          <p className="mono-eyebrow">Worm rental perks</p>
+          <h1>{isWorm ? 'Your Worm benefits are active.' : 'Upgrade to Worm for better rental limits.'}</h1>
           <p>
-            VIP accounts receive coupons, visible VIP tags in the system, and special offers for buying multiple books.
-            Normal accounts can still buy normally from the store.
+            Worm accounts receive a visible Worm tag, a higher book rental limit, and special rental offers. Normal
+            accounts can still rent books through the approval flow.
           </p>
           <button className="primary-button" onClick={onStore} type="button">
-            <i className="bi bi-bag-heart" />
-            Shop books
+            <BookOpen size={16} aria-hidden="true" />
+            Rent books
           </button>
         </div>
         <aside className="commerce-status-card">
-          <span className={isVip ? 'vip-badge' : 'normal-badge'}>{isVip ? 'VIP' : 'Normal'}</span>
-          <strong>{isVip ? 'Coupons unlocked' : 'VIP locked'}</strong>
-          <small>{isVip ? 'Discounts apply automatically at checkout.' : 'Admin/payment flow can upgrade this account later.'}</small>
+          <span className={isWorm ? 'worm-badge' : 'normal-badge'}>{isWorm ? 'Worm' : 'Normal'}</span>
+          <strong>{isWorm ? 'Perks unlocked' : 'Worm locked'}</strong>
+          <small>{isWorm ? 'Rental benefits apply automatically.' : 'Admin can upgrade this account later.'}</small>
         </aside>
       </section>
 
       <section className="promo-grid">
-        {coupons.map((coupon) => (
-          <article className={coupon.active ? 'promo-card active' : 'promo-card locked'} key={coupon.code}>
-            <span>{coupon.code}</span>
-            <h2>{coupon.title}</h2>
-            <p>{coupon.active ? 'Ready to use at checkout.' : 'Available after VIP upgrade.'}</p>
+        {perks.map((perk) => (
+          <article className={perk.active ? 'promo-card active' : 'promo-card locked'} key={perk.code}>
+            <span>{perk.code}</span>
+            <h2>{perk.title}</h2>
+            <p>{perk.active ? 'Ready for your rental account.' : 'Available after Worm upgrade.'}</p>
           </article>
         ))}
       </section>
 
       <section className="vip-notice">
-        <i className="bi bi-stars" />
+        <Star size={30} aria-hidden="true" />
         <div>
-          <h2>VIP system logic</h2>
+          <h2>Worm account logic</h2>
           <p>
-            Store `accountType: "vip"` in Firebase Custom Claims or Firestore user profile. The UI reads that value to
-            show the VIP tag and auto-apply discounts.
+            Store `accountType: "worm"` in Firebase Custom Claims or Firestore user profile. The UI reads that value to
+            show the Worm tag and apply the higher rental limit.
           </p>
         </div>
       </section>

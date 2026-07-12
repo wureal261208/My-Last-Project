@@ -12,7 +12,7 @@ function BookCard({ book, favorites = [], onDetail, onFavorite, onRead, viewCoun
       <div>
         <div className="book-card-tags">
           <span className="category">{getCategory(book)}</span>
-          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-sale' ? 'For sale' : 'Free read'}</span>
+          <span className={`book-access-tag ${accessType}`}>{accessType === 'for-rent' ? 'For rent' : 'Free read'}</span>
         </div>
         <h2>{book.title}</h2>
         <p>{getAuthor(book)}</p>

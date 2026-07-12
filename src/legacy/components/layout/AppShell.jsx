@@ -5,10 +5,9 @@ const logo = '/logo.jpg'
 
 const navItems = [
   { id: 'home', label: 'Home', icon: 'bi-house' },
-  { id: 'store', label: 'Store', icon: 'bi-bag' },
+  { id: 'store', label: 'Rent', icon: 'bi-book' },
   { id: 'discover', label: 'Discover', icon: 'bi-compass' },
-  { id: 'promotions', label: 'VIP', icon: 'bi-stars' },
-  { id: 'profile', label: 'Profile', icon: 'bi-person-circle', private: true },
+  { id: 'promotions', label: 'Worm', icon: 'bi-stars' },
   { id: 'admin', label: 'Admin', icon: 'bi-shield-lock', admin: true },
 ]
 
@@ -17,8 +16,8 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
   const isGuest = account?.role === 'anonymous'
   const isAdminPage = activePage === 'admin'
   const displayName = account?.name || 'None Account'
-  const visibleNavItems = ['admin', 'profile'].includes(activePage)
-    ? navItems.filter((item) => item.id === activePage || (activePage === 'admin' && item.id === 'profile'))
+  const visibleNavItems = activePage === 'admin'
+    ? navItems.filter((item) => item.id === activePage)
     : navItems
 
   return (
@@ -91,12 +90,12 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
             {!['admin', 'profile'].includes(activePage) && (
               <>
                 <button className="footer-link" onClick={() => navigateTo('home')} type="button">Home</button>
-                <button className="footer-link" onClick={() => navigateTo('store')} type="button">Store</button>
+                <button className="footer-link" onClick={() => navigateTo('store')} type="button">Rent</button>
                 <button className="footer-link" onClick={() => navigateTo('discover')} type="button">Discover</button>
-                <button className="footer-link" onClick={() => navigateTo('promotions')} type="button">VIP</button>
+                <button className="footer-link" onClick={() => navigateTo('promotions')} type="button">Worm</button>
               </>
             )}
-            {!isGuest && <button onClick={() => navigateTo('profile')} type="button">Profile</button>}
+            {!isGuest && <button className="footer-link" onClick={() => navigateTo('profile')} type="button">Profile settings</button>}
             {activePage === 'admin' && <button onClick={() => navigateTo('admin')} type="button">Admin</button>}
           </nav>
           <div>
