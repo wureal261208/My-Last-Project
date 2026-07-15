@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/reader-text/(.*)",
+      "destination": "/api/reader-text"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
