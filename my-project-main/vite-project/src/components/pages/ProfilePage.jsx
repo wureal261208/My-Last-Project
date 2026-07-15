@@ -7,12 +7,24 @@ const DISPLAY_NAME_MAX = 32
 const DISPLAY_NAME_MIN = 2
 const DISPLAY_NAME_PATTERN = /^[\p{L}\p{N} ._'-]+$/u
 
+function maskEmail(email) {
+  if (!email) return 'No email linked yet'
+  const [localPart, domain = ''] = email.split('@')
+  if (!localPart || !domain) return email
+
+  const visiblePrefix = localPart.slice(0, Math.min(2, localPart.length))
+  const visibleSuffix = localPart.slice(-1)
+  const maskedLocal = `${visiblePrefix}${'*'.repeat(Math.max(2, localPart.length - 2))}${visibleSuffix}`
+  return `${maskedLocal}@${domain}`
+}
+
 function ProfilePage({
   account,
   onProfileUpdate,
   onResetPassword,
   readerFontSize,
   readerTheme,
+  rentals = [],
   setReaderFontSize,
   setReaderTheme,
   setWebsiteTheme,
@@ -21,11 +33,13 @@ function ProfilePage({
   return (
     <div className="profile-page settings-only-page">
       <ProfileSettings
+        key={account?.id || account?.email || 'guest'}
         account={account}
         onProfileUpdate={onProfileUpdate}
         onResetPassword={onResetPassword}
         readerFontSize={readerFontSize}
         readerTheme={readerTheme}
+        rentals={rentals}
         setReaderFontSize={setReaderFontSize}
         setReaderTheme={setReaderTheme}
         setWebsiteTheme={setWebsiteTheme}
@@ -41,15 +55,22 @@ function ProfileSettings({
   onResetPassword,
   readerFontSize,
   readerTheme,
+  rentals = [],
   setReaderFontSize,
   setReaderTheme,
   setWebsiteTheme,
   websiteTheme,
 }) {
-  const [avatarPreview, setAvatarPreview] = useState(account.avatar || '')
-  const [displayName, setDisplayName] = useState(account.name)
+  const [avatarPreview, setAvatarPreview] = useState(account?.avatar || '')
+  const [displayName, setDisplayName] = useState(account?.name || 'Reader')
   const [settingsError, setSettingsError] = useState('')
   const [settingsLoading, setSettingsLoading] = useState(false)
+  const isDarkMode = websiteTheme === 'ink'
+  const roleLabel = (account?.role || 'customer').charAt(0).toUpperCase() + (account?.role || 'customer').slice(1)
+  const safeName = displayName || account?.name || 'Reader'
+  const safeEmail = account?.email || 'No email linked yet'
+  const safeMaskedEmail = safeEmail === 'No email linked yet' ? safeEmail : maskEmail(safeEmail)
+  const safeAvatar = avatarPreview || account?.avatar || ''
 
   function handleAvatarChange(event) {
     const file = event.target.files?.[0]
@@ -87,7 +108,7 @@ function ProfileSettings({
     setSettingsLoading(true)
     setSettingsError('')
     try {
-      await onProfileUpdate({ avatar: avatarPreview, displayName: normalizedDisplayName })
+      await onProfileUpdate({ avatar: safeAvatar, displayName: normalizedDisplayName })
       setDisplayName(normalizedDisplayName)
     } catch {
       setSettingsError('Could not update your profile. Please try again.')
@@ -117,16 +138,53 @@ function ProfileSettings({
           <p>Keep your profile, password, reading comfort, and site appearance in one place.</p>
         </div>
         <div className="settings-mini-profile">
-          <span>{avatarPreview ? <img src={avatarPreview} alt="" /> : getInitials(displayName)}</span>
-          <strong>{displayName || account.name}</strong>
+          <span>{safeAvatar ? <img src={safeAvatar} alt="" /> : getInitials(safeName)}</span>
+          <strong>{safeName}</strong>
         </div>
       </div>
 
       <div className="settings-layout">
+        <div className="account-settings-card account-overview-card">
+          <SettingsHeading icon="bi-person-badge" kicker="Account" title="Your profile" />
+          <div className="account-overview">
+            <div className="account-overview-main">
+              <div className="account-overview-name">
+                <strong>{safeName}</strong>
+                <p>{safeMaskedEmail}</p>
+              </div>
+              <span className="account-role-pill">{roleLabel}</span>
+            </div>
+            <div className="account-overview-meta">
+              <div>
+                <span>Email</span>
+                <strong>{safeMaskedEmail}</strong>
+              </div>
+              <div>
+                <span>Role</span>
+                <strong>{roleLabel}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{account?.email ? 'Active' : 'Guest'}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="quick-theme-toggle">
+            <button
+              className={isDarkMode ? 'active' : ''}
+              onClick={() => setWebsiteTheme(isDarkMode ? 'paper' : 'ink')}
+              type="button"
+            >
+              <i className={`bi ${isDarkMode ? 'bi-moon-fill' : 'bi-moon'}`} />
+              {isDarkMode ? 'Dark mode on' : 'Switch to dark mode'}
+            </button>
+          </div>
+        </div>
+
         <form className="account-settings-card profile-card-large" onSubmit={saveProfile}>
           <SettingsHeading icon="bi-person-gear" kicker="Profile" title="Identity" />
           <div className="avatar-editor">
-            <span>{avatarPreview ? <img src={avatarPreview} alt="" /> : getInitials(displayName || account.name)}</span>
+            <span>{safeAvatar ? <img src={safeAvatar} alt="" /> : getInitials(safeName)}</span>
             <label className="file-picker">
               <i className="bi bi-image" />
               Change avatar
@@ -156,7 +214,7 @@ function ProfileSettings({
 
         <div className="account-settings-card">
           <SettingsHeading icon="bi-bag-check" kicker="Rentals" title="Active rentals" />
-          {rentals.length ? (
+          {rentals?.length ? (
             <ul className="rental-list">
               {rentals.map((rental) => (
                 <li key={rental.id}>
@@ -172,7 +230,7 @@ function ProfileSettings({
 
         <div className="account-settings-card">
           <SettingsHeading icon="bi-shield-lock" kicker="Security" title="Password" />
-          <p className="settings-copy">Send a reset link to {account.email}.</p>
+          <p className="settings-copy">Send a reset link to {safeMaskedEmail}.</p>
           <button className="ghost-button" disabled={settingsLoading} onClick={sendResetPassword} type="button">
             <i className="bi bi-envelope-arrow-up" />
             Send reset email

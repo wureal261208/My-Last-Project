@@ -169,6 +169,14 @@ function App() {
     [staff, staffEmails],
   )
 
+  const scrollToTopForPage = useCallback((page) => {
+    if (typeof window === 'undefined') return
+
+    if (['home', 'discover', 'profile'].includes(page)) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+    }
+  }, [])
+
   const navigateTo = useCallback((page, options = {}) => {
     const nextPage = PAGE_PATHS[page] ? page : 'home'
     const nextPath = PAGE_PATHS[nextPage]
@@ -183,6 +191,7 @@ function App() {
     if (options.instant) {
       dispatchPage({ type: 'instant', page: nextPage })
       openRoute()
+      scrollToTopForPage(nextPage)
       return
     }
 
@@ -190,8 +199,9 @@ function App() {
     routeTimerRef.current = window.setTimeout(() => {
       openRoute()
       dispatchPage({ type: 'finish', page: nextPage })
+      scrollToTopForPage(nextPage)
     }, 420)
-  }, [routerNavigate])
+  }, [routerNavigate, scrollToTopForPage])
 
   const handleDataSyncError = useCallback((error) => {
     const message =
@@ -245,7 +255,8 @@ function App() {
 
     window.clearTimeout(routeTimerRef.current)
     dispatchPage({ type: 'instant', page: nextPage })
-  }, [activePage, location.pathname])
+    scrollToTopForPage(nextPage)
+  }, [activePage, location.pathname, scrollToTopForPage])
 
   useEffect(() => {
     accountSettingsRef.current = accountSettings

@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import { getAnalytics, isSupported } from 'firebase/analytics'
-import { getAuth, initializeAuth, inMemoryPersistence, setPersistence } from 'firebase/auth'
+import { browserLocalPersistence, getAuth, initializeAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const env = import.meta.env
@@ -19,10 +19,10 @@ export const app = getApps().length ? getApp() : initializeApp(firebaseConfig)
 
 function createAuth() {
   try {
-    return initializeAuth(app, { persistence: inMemoryPersistence })
+    return initializeAuth(app, { persistence: browserLocalPersistence })
   } catch {
     const existingAuth = getAuth(app)
-    setPersistence(existingAuth, inMemoryPersistence).catch(() => {})
+    setPersistence(existingAuth, browserLocalPersistence).catch(() => {})
     return existingAuth
   }
 }

@@ -1251,13 +1251,66 @@ progress {
 }
 
 .app-theme-ink {
-  --app-bg: #151515;
-  --app-surface: #202020;
-  --app-surface-soft: #262626;
-  --app-text: #f5f2ea;
-  --app-muted: #c2bbb0;
-  --app-line: #383838;
-  --app-accent: #f0b84f;
+  --app-bg: #050505;
+  --app-surface: #111111;
+  --app-surface-soft: #181818;
+  --app-text: #ffffff;
+  --app-muted: #cfcfc4;
+  --app-line: #2f2f2f;
+  --app-accent: #ffffff;
+}
+
+.book-app.app-theme-ink,
+.book-app.app-theme-ink * {
+  color: var(--app-text);
+}
+
+.book-app.app-theme-ink .main-nav button.active,
+.book-app.app-theme-ink .main-nav button:hover {
+  background: #ffffff;
+  color: #000000;
+}
+
+.book-app.app-theme-ink .profile-hero,
+.book-app.app-theme-ink .settings-panel,
+.book-app.app-theme-ink .book-card,
+.book-app.app-theme-ink .shelf-item,
+.book-app.app-theme-ink .metrics article,
+.book-app.app-theme-ink .empty-state,
+.book-app.app-theme-ink .highlight-item,
+.book-app.app-theme-ink .category-grid button,
+.book-app.app-theme-ink .detail-layout,
+.book-app.app-theme-ink .detail-meta-grid article,
+.book-app.app-theme-ink .comment-form,
+.book-app.app-theme-ink .comment-item,
+.book-app.app-theme-ink .admin-form,
+.book-app.app-theme-ink .admin-table,
+.book-app.app-theme-ink .search-dropdown {
+  border-color: #d8d8d3;
+  background: #ffffff;
+  color: #111111;
+}
+
+.book-app.app-theme-ink .primary-button,
+.book-app.app-theme-ink .ghost-button,
+.book-app.app-theme-ink .chapter-page-grid button,
+.book-app.app-theme-ink .reader-page-actions button,
+.book-app.app-theme-ink .pagination button,
+.book-app.app-theme-ink input,
+.book-app.app-theme-ink select,
+.book-app.app-theme-ink textarea {
+  border-color: #d8d8d3;
+  background: #ffffff;
+  color: #111111;
+}
+
+.book-app.app-theme-ink .primary-button:hover,
+.book-app.app-theme-ink .ghost-button:hover,
+.book-app.app-theme-ink .chapter-page-grid button:hover,
+.book-app.app-theme-ink .reader-page-actions button:hover,
+.book-app.app-theme-ink .pagination button:hover {
+  background: #f2f2f0;
+  color: #111111;
 }
 
 .book-app .page-shell,
@@ -1310,6 +1363,7 @@ progress {
   background: var(--app-surface);
   color: var(--app-text);
 }
+
 
 .book-app .book-card h2,
 .book-app .shelf-item h2,
@@ -3418,13 +3472,15 @@ progress {
 
 .settings-layout {
   grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.2fr);
+  align-items: start;
 }
 
 .settings-intro {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   padding: 4px 2px 10px;
   border-bottom: 1px solid var(--app-line);
 }
@@ -3446,9 +3502,10 @@ progress {
 
 .settings-mini-profile {
   display: inline-flex;
-  min-width: 210px;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 10px;
   border: 1px solid var(--app-line);
   border-radius: 999px;
@@ -3649,10 +3706,162 @@ progress {
   color: #f2f2ed;
 }
 
+.account-overview-card {
+  display: grid;
+  gap: 14px;
+}
+
+.account-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.account-overview-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.account-overview-name strong {
+  display: block;
+  font-size: 18px;
+  color: var(--app-text);
+}
+
+.account-overview-name p {
+  margin: 2px 0 0;
+  color: var(--app-muted);
+}
+
+.privacy-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-surface-soft);
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.account-role-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--app-surface-soft);
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.account-overview-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.account-overview-meta strong,
+.account-overview-name strong,
+.account-overview-name p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.account-overview-meta > div {
+  padding: 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface-soft);
+}
+
+.account-overview-meta span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.quick-theme-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-weight: 800;
+}
+
+.quick-theme-toggle button.active,
+.quick-theme-toggle button:hover,
+.settings-panel button:hover,
+.file-picker:hover,
+.theme-options button:hover {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+.settings-panel button,
+.file-picker,
+.theme-options button {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
 .theme-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-layout .reader-preview-card {
+    grid-column: auto;
+  }
+
+  .account-overview-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .settings-panel {
+    padding: 14px;
+  }
+
+  .settings-intro {
+    align-items: flex-start;
+  }
+
+  .settings-two-col,
+  .theme-options {
+    grid-template-columns: 1fr;
+  }
+
+  .account-overview-main {
+    align-items: flex-start;
+  }
 }
 
 .theme-options button {
@@ -3673,7 +3882,7 @@ progress {
 
 .theme-options button.active,
 .theme-options button:hover {
-  border-color: var(--app-text);
+  border-color: var(--app-accent);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
 }
 
@@ -3693,7 +3902,7 @@ progress {
 }
 
 .theme-swatch-ink {
-  background: linear-gradient(135deg, #151515 50%, #f0b84f 50%);
+  background: linear-gradient(135deg, #000000 50%, #ffffff 50%);
 }
 
 .settings-error {
