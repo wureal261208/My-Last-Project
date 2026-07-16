@@ -14,6 +14,9 @@ const managementNavIds = ['profile', 'admin']
 
 function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme = 'paper' }) {
   const { activePage, isPageLoading, navigateTo } = useNavigation()
+
+
+
   const [rememberedAdminAccess, setRememberedAdminAccess] = useState(false)
   const normalizedRole = normalizeRole(account?.role)
   const isGuest = normalizedRole === 'guest'
@@ -69,7 +72,7 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
   }
 
   return (
-    <div className={`book-app app-theme-${websiteTheme}`}>
+    <div className={`book-app app-theme-${websiteTheme === 'ink' ? 'paper' : websiteTheme}`}>
       <header className="site-header">
         <button className="brand-button" onClick={handleLogoClick} type="button">
           <img src={logo} alt="BookWorm logo" />

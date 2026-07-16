@@ -65,8 +65,8 @@ function ProfileSettings({
   const [displayName, setDisplayName] = useState(account?.name || 'Reader')
   const [settingsError, setSettingsError] = useState('')
   const [settingsLoading, setSettingsLoading] = useState(false)
-  const isDarkMode = websiteTheme === 'ink'
   const roleLabel = (account?.role || 'customer').charAt(0).toUpperCase() + (account?.role || 'customer').slice(1)
+
   const safeName = displayName || account?.name || 'Reader'
   const safeEmail = account?.email || 'No email linked yet'
   const safeMaskedEmail = safeEmail === 'No email linked yet' ? safeEmail : maskEmail(safeEmail)
@@ -169,16 +169,7 @@ function ProfileSettings({
               </div>
             </div>
           </div>
-          <div className="quick-theme-toggle">
-            <button
-              className={isDarkMode ? 'active' : ''}
-              onClick={() => setWebsiteTheme(isDarkMode ? 'paper' : 'ink')}
-              type="button"
-            >
-              <i className={`bi ${isDarkMode ? 'bi-moon-fill' : 'bi-moon'}`} />
-              {isDarkMode ? 'Dark mode on' : 'Switch to dark mode'}
-            </button>
-          </div>
+
         </div>
 
         <form className="account-settings-card profile-card-large" onSubmit={saveProfile}>
@@ -274,7 +265,6 @@ function ProfileSettings({
             {[
               ['paper', 'Paper'],
               ['mint', 'Mint'],
-              ['ink', 'Ink'],
             ].map(([value, label]) => (
               <button
                 className={websiteTheme === value ? 'active' : ''}
@@ -285,6 +275,7 @@ function ProfileSettings({
                 <span className={`theme-swatch theme-swatch-${value}`} />
                 {label}
               </button>
+
             ))}
           </div>
         </div>

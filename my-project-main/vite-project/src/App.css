@@ -1250,68 +1250,7 @@ progress {
   --app-accent: #0f8d7f;
 }
 
-.app-theme-ink {
-  --app-bg: #050505;
-  --app-surface: #111111;
-  --app-surface-soft: #181818;
-  --app-text: #ffffff;
-  --app-muted: #cfcfc4;
-  --app-line: #2f2f2f;
-  --app-accent: #ffffff;
-}
 
-.book-app.app-theme-ink,
-.book-app.app-theme-ink * {
-  color: var(--app-text);
-}
-
-.book-app.app-theme-ink .main-nav button.active,
-.book-app.app-theme-ink .main-nav button:hover {
-  background: #ffffff;
-  color: #000000;
-}
-
-.book-app.app-theme-ink .profile-hero,
-.book-app.app-theme-ink .settings-panel,
-.book-app.app-theme-ink .book-card,
-.book-app.app-theme-ink .shelf-item,
-.book-app.app-theme-ink .metrics article,
-.book-app.app-theme-ink .empty-state,
-.book-app.app-theme-ink .highlight-item,
-.book-app.app-theme-ink .category-grid button,
-.book-app.app-theme-ink .detail-layout,
-.book-app.app-theme-ink .detail-meta-grid article,
-.book-app.app-theme-ink .comment-form,
-.book-app.app-theme-ink .comment-item,
-.book-app.app-theme-ink .admin-form,
-.book-app.app-theme-ink .admin-table,
-.book-app.app-theme-ink .search-dropdown {
-  border-color: #d8d8d3;
-  background: #ffffff;
-  color: #111111;
-}
-
-.book-app.app-theme-ink .primary-button,
-.book-app.app-theme-ink .ghost-button,
-.book-app.app-theme-ink .chapter-page-grid button,
-.book-app.app-theme-ink .reader-page-actions button,
-.book-app.app-theme-ink .pagination button,
-.book-app.app-theme-ink input,
-.book-app.app-theme-ink select,
-.book-app.app-theme-ink textarea {
-  border-color: #d8d8d3;
-  background: #ffffff;
-  color: #111111;
-}
-
-.book-app.app-theme-ink .primary-button:hover,
-.book-app.app-theme-ink .ghost-button:hover,
-.book-app.app-theme-ink .chapter-page-grid button:hover,
-.book-app.app-theme-ink .reader-page-actions button:hover,
-.book-app.app-theme-ink .pagination button:hover {
-  background: #f2f2f0;
-  color: #111111;
-}
 
 .book-app .page-shell,
 .book-app .site-footer {
@@ -1406,7 +1345,7 @@ progress {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  border: 0;
+  border: 2;
   background: transparent;
   color: var(--app-text);
   font-weight: 900;
