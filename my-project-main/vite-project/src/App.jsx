@@ -64,6 +64,7 @@ const emptyAdminBook = {
   readerText: '',
   chapterText: '',
   chaptersDraft: [{ title: 'Chapter 1', pages: '10', content: '' }],
+  access: 'read',
 }
 const guestAccount = { id: 'guest', name: 'None Account', email: 'guest@bookworm.local', role: 'guest' }
 const SEARCH_HISTORY_LIMIT = 8
@@ -147,6 +148,7 @@ function App() {
   const [globalDataReady, setGlobalDataReady] = useState(false)
   const [userDataReady, setUserDataReady] = useState(false)
   const accountSettingsRef = useRef(accountSettings)
+  const knownUsersRef = useRef(knownUsers)
   const globalDataSnapshotRef = useRef('')
   const userDataSnapshotRef = useRef('')
   const pendingFavoriteUpdatesRef = useRef([])
@@ -261,6 +263,10 @@ function App() {
   useEffect(() => {
     accountSettingsRef.current = accountSettings
   }, [accountSettings])
+
+  useEffect(() => {
+    knownUsersRef.current = knownUsers
+  }, [knownUsers])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -418,7 +424,7 @@ function App() {
   }, [account.avatar, account.email, account.id, account.name, account.role, accountSettings, userDataReady])
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       const currentRoute = getPageFromPath(window.location.pathname)
 
       if (!user) {
@@ -431,6 +437,14 @@ function App() {
       }
 
       const email = user.email?.toLowerCase() || ''
+      const lockedRecord = knownUsersRef.current.find((item) => item.email === email)
+      if (lockedRecord?.locked) {
+        await signOut(auth)
+        setToast({ type: 'error', message: 'This account has been locked. Contact a manager or admin.' })
+        setAuthReady(true)
+        return
+      }
+
       const savedSettings = accountSettingsRef.current[user.uid] || accountSettingsRef.current[email] || {}
       if (savedSettings.websiteTheme) setWebsiteTheme(savedSettings.websiteTheme)
       const nextAccount = {
@@ -443,7 +457,7 @@ function App() {
 
       setAccount(nextAccount)
       setKnownUsers((current) => upsertUser(current, nextAccount))
-      const canAccessAdmin = hasAccess(nextAccount.role, 'manager')
+      const canAccessAdmin = hasAccess(nextAccount.role, 'employee')
 
       if (currentRoute === 'auth') {
         navigateTo(canAccessAdmin ? 'admin' : 'home', { instant: true, replace: true })
@@ -472,6 +486,18 @@ function App() {
       isCurrent = false
     }
   }, [account.email, account.role, getAccountRole])
+
+  useEffect(() => {
+    if (account.role === 'guest' || !account.email) return
+    const lockedRecord = knownUsers.find((item) => item.email === account.email)
+    if (!lockedRecord?.locked) return
+
+    // Avoid setState directly in the effect body
+    queueMicrotask(async () => {
+      await signOut(auth)
+      setToast({ type: 'error', message: 'This account has been locked. Contact a manager or admin.' })
+    })
+  }, [account.email, account.role, knownUsers])
 
   useEffect(() => {
     if (!globalDataReady || account.role === 'guest') return
@@ -796,6 +822,12 @@ function App() {
     setToast({ type: 'success', message: `${book.title} is now rented for reading. ${formatRentalExpiry(nextRental)}` })
   }
 
+  function toggleUserLock(email) {
+    setKnownUsers((current) => current.map((item) => (
+      item.email === email ? { ...item, locked: !item.locked } : item
+    )))
+  }
+
   function addManagedBook(event) {
     event.preventDefault()
     const validationErrors = validateAdminBook(adminBook, managedBooks)
@@ -986,8 +1018,9 @@ function App() {
         websiteTheme={websiteTheme}
       />
     ),
-    admin: account.role === 'admin' ? (
+    admin: hasAccess(account.role, 'employee') ? (
       <AdminPage
+        account={account}
         addManagedBook={addManagedBook}
         adminBook={adminBook}
         books={allBooks}
@@ -999,6 +1032,7 @@ function App() {
         setStaff={setStaff}
         staff={staff}
         users={knownUsers}
+        onToggleUserLock={toggleUserLock}
       />
     ) : null,
   }
@@ -1007,7 +1041,7 @@ function App() {
 
   return (
     <NavigationProvider value={navigation}>
-      <AppShell account={account} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} websiteTheme={websiteTheme}>
+      <AppShell account={account} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} setWebsiteTheme={setWebsiteTheme} websiteTheme={websiteTheme}>
         <Suspense fallback={<PageFallback />}>{pages[activePage] || pages.home}</Suspense>
         {toast && <AppToast message={toast.message} onClose={() => setToast(null)} type={toast.type} />}
       </AppShell>
@@ -1016,9 +1050,9 @@ function App() {
 }
 
 function upsertUser(users, user) {
-  const stored = { email: user.email, name: user.name, role: user.role }
   const existing = users.find((item) => item.email === user.email)
-  if (existing && existing.name === stored.name && existing.role === stored.role) return users
+  const stored = { email: user.email, name: user.name, role: user.role, locked: existing?.locked || false }
+  if (existing && existing.name === stored.name && existing.role === stored.role && existing.locked === stored.locked) return users
 
   return [stored, ...users.filter((item) => item.email !== user.email)]
 }
@@ -1137,6 +1171,7 @@ function createAdminBookRecord(adminBook) {
     ...adminBook,
     id: adminBook.id || `managed-${Date.now()}`,
     title: adminBook.title.trim(),
+    access: adminBook.access === 'rent' ? 'rent' : 'read',
     author,
     category,
     authors: [{ name: author }],

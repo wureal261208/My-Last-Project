@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { getAuthor, getCategory, getDescription, getReaderUrl } from '../../utils/bookUtils'
 import { getBookChapters, getTotalPages } from '../../utils/chapterUtils'
+import { normalizeRole } from '../../data/bookData'
+import { apiFetch } from '../../utils/apiClient'
 
 const identityFields = [
   { name: 'title', label: 'Title', placeholder: 'Book title' },
@@ -20,6 +22,18 @@ const languageChoices = [
   { value: 'jp', label: 'Japanese - Coming soon', disabled: true },
 ]
 
+const accessChoices = [
+  { value: 'read', label: 'To Read - free to open' },
+  { value: 'rent', label: 'To Rent - needs a rental' },
+]
+
+const usageTypeChoices = [
+  { value: 'none', label: 'None' },
+  { value: 'read', label: 'Read' },
+  { value: 'rent', label: 'Rent' },
+  { value: 'both', label: 'Both' },
+]
+
 const adminBookFilters = [
   { id: 'all', label: 'All books' },
   { id: 'reader-ready', label: 'Ready for Reader' },
@@ -28,6 +42,7 @@ const adminBookFilters = [
 ]
 
 function AdminPage({
+  account,
   addManagedBook,
   adminBook,
   books,
@@ -39,22 +54,62 @@ function AdminPage({
   setStaff,
   staff,
   users,
+  onToggleUserLock,
 }) {
-  const [activeAdminSection, setActiveAdminSection] = useState('book')
+  const role = normalizeRole(account?.role)
+  const isAdmin = role === 'admin'
+  const isManager = role === 'manager'
+  const isEmployee = role === 'employee'
+
+  const myEmail = (account?.email || '').toLowerCase()
+  const myStaffRecord = staff.find((item) => (item.email || '').toLowerCase() === myEmail)
+  const mySection = myStaffRecord?.section === 'rent' ? 'rent' : 'read'
+
+  const canPushBooks = isAdmin || isEmployee
+  const canManageUsers = isAdmin || isManager
+  const canSyncCatalog = isAdmin
+  const availableBookSections = isAdmin ? ['read', 'rent'] : isEmployee ? [mySection] : []
+
+  const availableSections = [
+    canPushBooks && 'book',
+    canManageUsers && 'team',
+    canSyncCatalog && 'sync',
+  ].filter(Boolean)
+
+  const [activeAdminSection, setActiveAdminSection] = useState(availableSections[0] || 'book')
+  const [bookAccess, setBookAccess] = useState(availableBookSections[0] || 'read')
+  const [userTab, setUserTab] = useState(isAdmin ? 'manager' : 'employee')
   const [bookFilter, setBookFilter] = useState('all')
   const [showPreview, setShowPreview] = useState(false)
-  const publishedBooks = managedBooks.filter((book) => (book.status || 'published') === 'published').length
-  const detailReadyBooks = managedBooks.filter((book) => !getBookWarnings(book).some((warning) => warning.id === 'description')).length
-  const readerReadyBooks = managedBooks.filter((book) => isReaderReady(book)).length
+
+  const sectionBooks = useMemo(
+    () => managedBooks.filter((book) => (book.access === 'rent' ? 'rent' : 'read') === bookAccess),
+    [managedBooks, bookAccess],
+  )
+  const publishedBooks = sectionBooks.filter((book) => (book.status || 'published') === 'published').length
+  const detailReadyBooks = sectionBooks.filter((book) => !getBookWarnings(book).some((warning) => warning.id === 'description')).length
+  const readerReadyBooks = sectionBooks.filter((book) => isReaderReady(book)).length
   const currentErrors = getFormErrors(adminBook, managedBooks)
   const currentWarnings = getFormWarnings(adminBook)
   const previewBook = useMemo(() => createPreviewBook(adminBook), [adminBook])
-  const filteredManagedBooks = managedBooks.filter((book) => {
+  const filteredManagedBooks = sectionBooks.filter((book) => {
     if (bookFilter === 'reader-ready') return isReaderReady(book)
     if (bookFilter === 'missing-cover') return !hasCover(book)
     if (bookFilter === 'missing-chapters') return !hasChapters(book)
     return true
   })
+
+  const managerAccounts = staff.filter((item) => item.role === 'manager')
+  const employeeAccounts = staff.filter((item) => item.role === 'employee')
+  const customerAccounts = users.filter((item) => normalizeRole(item.role) === 'customer')
+  const lockedCustomers = customerAccounts.filter((item) => item.locked).length
+  const userTabsAvailable = isAdmin ? ['manager', 'employee', 'customer'] : ['employee', 'customer']
+  const userTabLabels = { manager: 'Managers', employee: 'Employees', customer: 'Customers' }
+
+  function selectBookAccess(value) {
+    setBookAccess(value)
+    if (!adminBook.id) updateAdminBook('access', value)
+  }
 
   function updateAdminBook(name, value) {
     setAdminBook({ ...adminBook, [name]: value })
@@ -99,18 +154,27 @@ function AdminPage({
     reader.readAsDataURL(file)
   }
 
-  function addStaff(event) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const next = {
-      id: Date.now(),
-      name: form.get('name').trim(),
-      email: form.get('email').trim().toLowerCase(),
-      role: form.get('role'),
+  function createStaffAccount(staffRole) {
+    return function submit(event) {
+      event.preventDefault()
+      const form = new FormData(event.currentTarget)
+      const name = (form.get('name') || '').trim()
+      const email = (form.get('email') || '').trim().toLowerCase()
+      if (!name || !email) return
+
+      const section = staffRole === 'employee' ? (form.get('section') === 'rent' ? 'rent' : 'read') : null
+      const next = { id: Date.now(), name, email, role: staffRole, section }
+      setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
+      event.currentTarget.reset()
     }
-    if (!next.name || !next.email) return
-    setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
-    event.currentTarget.reset()
+  }
+
+  function updateEmployeeSection(email, section) {
+    setStaff((current) => current.map((item) => (item.email === email ? { ...item, section } : item)))
+  }
+
+  function removeStaffAccount(email) {
+    setStaff((current) => current.filter((item) => item.email !== email))
   }
 
   function handleBookSubmit(event) {
@@ -137,345 +201,649 @@ function AdminPage({
       </section>
 
       <div className="admin-sticky-switcher">
-        <div className="admin-section-tabs" role="tablist" aria-label="Management sections">
-          <button className={activeAdminSection === 'book' ? 'active' : ''} onClick={() => setActiveAdminSection('book')} type="button">
-            <i className="bi bi-journal-plus" />
-            Push Book
-          </button>
-          <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
-            <i className="bi bi-person-plus" />
-            Deputy Dev
-          </button>
-        </div>
-      </div>
-
-      <div className="metrics admin-metrics">
-        <article><strong>{books.length}</strong><span>Books on main</span></article>
-        <article><strong>{publishedBooks}</strong><span>Published managed books</span></article>
-        <article><strong>{detailReadyBooks}</strong><span>Detail ready</span></article>
-        <article><strong>{readerReadyBooks}</strong><span>Reader ready</span></article>
-      </div>
-
-      {activeAdminSection === 'book' ? (
-        <section className="admin-workspace">
-          <div className="section-heading">
-            <div>
-              <p className="mono-eyebrow">Main library</p>
-              <h2>{adminBook.id ? 'Edit book' : 'Push new book'}</h2>
-            </div>
-            <span>Used by Home, Discover, Detail, and Reader</span>
-          </div>
-
-          <div className="admin-validation-panel" aria-live="polite">
-            <strong>{currentErrors.length ? 'Cannot push yet' : currentWarnings.length ? 'Ready with notes' : 'Ready checklist'}</strong>
-            {currentErrors.length ? (
-              currentErrors.map((error) => (
-                <span className="admin-validation-error" key={error.id}>
-                  <i className="bi bi-x-circle" />
-                  {error.message}
-                </span>
-              ))
-            ) : currentWarnings.length ? (
-              currentWarnings.map((warning) => (
-                <span className="admin-validation-warning" key={warning.id}>
-                  <i className="bi bi-exclamation-circle" />
-                  {warning.message}
-                </span>
-              ))
-            ) : (
-              <span>
-                <i className="bi bi-check-circle" />
-                This book has the key Detail and Reader fields.
-              </span>
+        {availableSections.length > 1 ? (
+          <div
+            className="admin-section-tabs"
+            role="tablist"
+            aria-label="Management sections"
+            style={{ gridTemplateColumns: `repeat(${availableSections.length}, 1fr)` }}
+          >
+            {availableSections.includes('book') && (
+              <button className={activeAdminSection === 'book' ? 'active' : ''} onClick={() => setActiveAdminSection('book')} type="button">
+                <i className="bi bi-journal-plus" />
+                Push Book
+              </button>
+            )}
+            {availableSections.includes('team') && (
+              <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
+                <i className="bi bi-people" />
+                Users
+              </button>
+            )}
+            {availableSections.includes('sync') && (
+              <button className={activeAdminSection === 'sync' ? 'active' : ''} onClick={() => setActiveAdminSection('sync')} type="button">
+                <i className="bi bi-arrow-repeat" />
+                Catalog Sync
+              </button>
             )}
           </div>
+        ) : (
+          <div className="admin-section-tabs" style={{ gridTemplateColumns: '1fr' }}>
+            <button className="active" disabled type="button">
+              <i className={canPushBooks ? 'bi bi-journal-plus' : 'bi bi-people'} />
+              {canPushBooks ? 'Push Book' : 'Users'}
+            </button>
+          </div>
+        )}
+      </div>
 
-          <form className="admin-form admin-book-form" onSubmit={handleBookSubmit}>
-            <fieldset>
-              <legend>Detail information</legend>
-              {identityFields.map((field) => (
-                <label key={field.name}>
-                  {field.label}
-                  <input
-                    type={field.type || 'text'}
-                    value={adminBook[field.name]}
-                    onChange={(event) => updateAdminBook(field.name, event.target.value)}
-                    placeholder={field.placeholder}
-                  />
-                </label>
-              ))}
-              <label>
-                Status
-                <select value={adminBook.status} onChange={(event) => updateAdminBook('status', event.target.value)}>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="hidden">Hidden</option>
-                </select>
-              </label>
-              <div className="admin-choice-field">
-                <span>Language</span>
-                <div className="admin-choice-grid">
-                  {languageChoices.map((choice) => (
-                    <button
-                      className={adminBook.language === choice.value ? 'active' : ''}
-                      disabled={choice.disabled}
-                      key={choice.value}
-                      onClick={() => updateAdminBook('language', choice.value)}
-                      type="button"
-                    >
-                      {choice.label}
-                    </button>
-                  ))}
-                </div>
+      {activeAdminSection === 'book' && canPushBooks ? (
+        <>
+          <div className="metrics admin-metrics">
+            <article><strong>{books.length}</strong><span>Books on main</span></article>
+            <article><strong>{publishedBooks}</strong><span>Published in this shelf</span></article>
+            <article><strong>{detailReadyBooks}</strong><span>Detail ready</span></article>
+            <article><strong>{readerReadyBooks}</strong><span>Reader ready</span></article>
+          </div>
+
+          <section className="admin-workspace">
+            <div className="section-heading">
+              <div>
+                <p className="mono-eyebrow">Push Book</p>
+                <h2>{adminBook.id ? 'Edit book' : 'Push new book'}</h2>
               </div>
-              <label className="wide-field">
-                Description
-                <textarea
-                  value={adminBook.description}
-                  onChange={(event) => updateAdminBook('description', event.target.value)}
-                  placeholder="Short book description shown on the detail page."
-                />
-              </label>
-              <label className="wide-field">
-                Subjects
-                <input
-                  value={adminBook.subjects}
-                  onChange={(event) => updateAdminBook('subjects', event.target.value)}
-                  placeholder="Adventure, Mystery, Classic"
-                />
-              </label>
-            </fieldset>
+              <span>{bookAccess === 'read' ? 'To Read - open to every reader, no rental needed' : 'To Rent - readers unlock this with a rental'}</span>
+            </div>
 
-            <fieldset>
-              <legend>Reader setup</legend>
-              <div className="admin-cover-picker wide-field">
-                <img
-                  src={getAdminCover(adminBook)}
-                  alt=""
-                  onError={(event) => {
-                    event.currentTarget.src = NONE_COVER_URL
-                  }}
-                />
-                <div>
-                  <label>
-                    Cover URL
+            <div className="admin-choice-grid admin-choice-grid-2" role="tablist" aria-label="Push Book shelf">
+              {availableBookSections.length === 2 ? accessChoices.map((choice) => (
+                <button
+                  className={bookAccess === choice.value ? 'active' : ''}
+                  key={choice.value}
+                  onClick={() => selectBookAccess(choice.value)}
+                  type="button"
+                >
+                  {choice.label}
+                </button>
+              )) : accessChoices.map((choice) => (
+                <button
+                  className={bookAccess === choice.value ? 'active' : ''}
+                  disabled={!availableBookSections.includes(choice.value)}
+                  key={choice.value}
+                  type="button"
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+            {isEmployee && (
+              <p className="form-note">
+                You only manage the <strong>{mySection === 'read' ? 'To Read' : 'To Rent'}</strong> shelf. Ask a manager or admin to move you to the other one.
+              </p>
+            )}
+
+            <div className="admin-validation-panel" aria-live="polite">
+              <strong>{currentErrors.length ? 'Cannot push yet' : currentWarnings.length ? 'Ready with notes' : 'Ready checklist'}</strong>
+              {currentErrors.length ? (
+                currentErrors.map((error) => (
+                  <span className="admin-validation-error" key={error.id}>
+                    <i className="bi bi-x-circle" />
+                    {error.message}
+                  </span>
+                ))
+              ) : currentWarnings.length ? (
+                currentWarnings.map((warning) => (
+                  <span className="admin-validation-warning" key={warning.id}>
+                    <i className="bi bi-exclamation-circle" />
+                    {warning.message}
+                  </span>
+                ))
+              ) : (
+                <span>
+                  <i className="bi bi-check-circle" />
+                  This book has the key Detail and Reader fields.
+                </span>
+              )}
+            </div>
+
+            <form className="admin-form admin-book-form" onSubmit={handleBookSubmit}>
+              <fieldset>
+                <legend>Detail information</legend>
+                {identityFields.map((field) => (
+                  <label key={field.name}>
+                    {field.label}
                     <input
-                      value={adminBook.cover}
-                      onChange={(event) => updateAdminBook('cover', event.target.value)}
-                      placeholder="https://..."
+                      type={field.type || 'text'}
+                      value={adminBook[field.name]}
+                      onChange={(event) => updateAdminBook(field.name, event.target.value)}
+                      placeholder={field.placeholder}
                     />
                   </label>
-                  <label className="file-picker admin-cover-upload">
-                    <i className="bi bi-image" />
-                    Upload cover image
-                    <input accept="image/*" onChange={updateCoverFile} type="file" />
-                  </label>
+                ))}
+                <label>
+                  Status
+                  <select value={adminBook.status} onChange={(event) => updateAdminBook('status', event.target.value)}>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </label>
+                <div className="admin-choice-field">
+                  <span>Language</span>
+                  <div className="admin-choice-grid">
+                    {languageChoices.map((choice) => (
+                      <button
+                        className={adminBook.language === choice.value ? 'active' : ''}
+                        disabled={choice.disabled}
+                        key={choice.value}
+                        onClick={() => updateAdminBook('language', choice.value)}
+                        type="button"
+                      >
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              {mediaFields.map((field) => (
-                <label key={field.name}>
-                  {field.label}
-                  <input
-                    type={field.type || 'text'}
-                    value={adminBook[field.name]}
-                    onChange={(event) => updateAdminBook(field.name, event.target.value)}
-                    placeholder={field.placeholder}
+                <label className="wide-field">
+                  Description
+                  <textarea
+                    value={adminBook.description}
+                    onChange={(event) => updateAdminBook('description', event.target.value)}
+                    placeholder="Short book description shown on the detail page."
                   />
                 </label>
-              ))}
-              <label className="wide-field">
-                Reader text
-                <textarea
-                  value={adminBook.readerText}
-                  onChange={(event) => updateAdminBook('readerText', event.target.value)}
-                  placeholder="Optional full plain book text. Chapter content below is preferred."
-                />
-              </label>
-            </fieldset>
+                <label className="wide-field">
+                  Subjects
+                  <input
+                    value={adminBook.subjects}
+                    onChange={(event) => updateAdminBook('subjects', event.target.value)}
+                    placeholder="Adventure, Mystery, Classic"
+                  />
+                </label>
+              </fieldset>
 
-            <fieldset className="admin-chapter-fieldset">
-              <legend>Chapters</legend>
-              <div className="admin-chapter-list">
-                {(adminBook.chaptersDraft?.length ? adminBook.chaptersDraft : [createEmptyChapter(0)]).map((chapter, index) => (
-                  <article className="admin-chapter-editor" key={`${index}-${chapter.title}`}>
-                    <div className="admin-chapter-heading">
-                      <strong>Chapter {index + 1}</strong>
-                      <button className="ghost-button" onClick={() => removeChapter(index)} type="button">Remove</button>
-                    </div>
+              <fieldset>
+                <legend>Reader setup</legend>
+                <div className="admin-cover-picker wide-field">
+                  <img
+                    src={getAdminCover(adminBook)}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.src = NONE_COVER_URL
+                    }}
+                  />
+                  <div>
                     <label>
-                      Title
+                      Cover URL
                       <input
-                        value={chapter.title}
-                        onChange={(event) => updateChapter(index, 'title', event.target.value)}
-                        placeholder={`Chapter ${index + 1}`}
+                        value={adminBook.cover}
+                        onChange={(event) => updateAdminBook('cover', event.target.value)}
+                        placeholder="https://..."
                       />
                     </label>
-                    <label>
-                      Pages
-                      <input
-                        min="1"
-                        type="number"
-                        value={chapter.pages}
-                        onChange={(event) => updateChapter(index, 'pages', event.target.value)}
-                      />
+                    <label className="file-picker admin-cover-upload">
+                      <i className="bi bi-image" />
+                      Upload cover image
+                      <input accept="image/*" onChange={updateCoverFile} type="file" />
                     </label>
-                    <label className="wide-field">
-                      Content
-                      <textarea
-                        value={chapter.content}
-                        onChange={(event) => updateChapter(index, 'content', event.target.value)}
-                        placeholder="Paste this chapter content..."
-                      />
-                    </label>
-                  </article>
+                  </div>
+                </div>
+                {mediaFields.map((field) => (
+                  <label key={field.name}>
+                    {field.label}
+                    <input
+                      type={field.type || 'text'}
+                      value={adminBook[field.name]}
+                      onChange={(event) => updateAdminBook(field.name, event.target.value)}
+                      placeholder={field.placeholder}
+                    />
+                  </label>
                 ))}
-              </div>
-              <button className="ghost-button admin-add-chapter" onClick={addChapter} type="button">
-                <i className="bi bi-plus-circle" />
-                Add chapter
-              </button>
-            </fieldset>
+                <label className="wide-field">
+                  Reader text
+                  <textarea
+                    value={adminBook.readerText}
+                    onChange={(event) => updateAdminBook('readerText', event.target.value)}
+                    placeholder="Optional full plain book text. Chapter content below is preferred."
+                  />
+                </label>
+              </fieldset>
 
-            <div className="admin-form-actions">
-              <button className="ghost-button" onClick={() => setShowPreview(true)} type="button">
-                <i className="bi bi-eye" />
-                Preview as Detail
-              </button>
-              {adminBook.id && (
-                <button className="ghost-button" onClick={resetAdminBook} type="button">
-                  Cancel edit
+              <fieldset className="admin-chapter-fieldset">
+                <legend>Chapters</legend>
+                <div className="admin-chapter-list">
+                  {(adminBook.chaptersDraft?.length ? adminBook.chaptersDraft : [createEmptyChapter(0)]).map((chapter, index) => (
+                    <article className="admin-chapter-editor" key={`${index}-${chapter.title}`}>
+                      <div className="admin-chapter-heading">
+                        <strong>Chapter {index + 1}</strong>
+                        <button className="ghost-button" onClick={() => removeChapter(index)} type="button">Remove</button>
+                      </div>
+                      <label>
+                        Title
+                        <input
+                          value={chapter.title}
+                          onChange={(event) => updateChapter(index, 'title', event.target.value)}
+                          placeholder={`Chapter ${index + 1}`}
+                        />
+                      </label>
+                      <label>
+                        Pages
+                        <input
+                          min="1"
+                          type="number"
+                          value={chapter.pages}
+                          onChange={(event) => updateChapter(index, 'pages', event.target.value)}
+                        />
+                      </label>
+                      <label className="wide-field">
+                        Content
+                        <textarea
+                          value={chapter.content}
+                          onChange={(event) => updateChapter(index, 'content', event.target.value)}
+                          placeholder="Paste this chapter content..."
+                        />
+                      </label>
+                    </article>
+                  ))}
+                </div>
+                <button className="ghost-button admin-add-chapter" onClick={addChapter} type="button">
+                  <i className="bi bi-plus-circle" />
+                  Add chapter
                 </button>
-              )}
-              <button className="primary-button" disabled={currentErrors.length > 0} type="submit">
-                <i className="bi bi-cloud-upload" />
-                {adminBook.id ? 'Update book' : 'Add book to management'}
-              </button>
-            </div>
-          </form>
+              </fieldset>
 
-          <div className="admin-filter-bar" aria-label="Filter admin books">
-            {adminBookFilters.map((filter) => (
-              <button className={bookFilter === filter.id ? 'active' : ''} key={filter.id} onClick={() => setBookFilter(filter.id)} type="button">
-                {filter.label}
-              </button>
-            ))}
+              <div className="admin-form-actions">
+                <button className="ghost-button" onClick={() => setShowPreview(true)} type="button">
+                  <i className="bi bi-eye" />
+                  Preview as Detail
+                </button>
+                {adminBook.id && (
+                  <button className="ghost-button" onClick={resetAdminBook} type="button">
+                    Cancel edit
+                  </button>
+                )}
+                <button className="primary-button" disabled={currentErrors.length > 0} type="submit">
+                  <i className="bi bi-cloud-upload" />
+                  {adminBook.id ? 'Update book' : `Push to ${bookAccess === 'read' ? 'To Read' : 'To Rent'}`}
+                </button>
+              </div>
+            </form>
+
+            <div className="admin-filter-bar" aria-label="Filter admin books">
+              {adminBookFilters.map((filter) => (
+                <button className={bookFilter === filter.id ? 'active' : ''} key={filter.id} onClick={() => setBookFilter(filter.id)} type="button">
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="admin-two-col">
+              <section className="admin-table">
+                <h2>{bookAccess === 'read' ? 'To Read shelf' : 'To Rent shelf'}</h2>
+                {filteredManagedBooks.length ? (
+                  filteredManagedBooks.map((book) => {
+                    const totalPages = getTotalPages(book)
+                    const chapters = getBookChapters(book, totalPages)
+                    const warnings = getBookWarnings(book)
+
+                    return (
+                      <div className="table-row admin-book-row" key={book.id}>
+                        <img
+                          src={getAdminCover(book)}
+                          alt=""
+                          onError={(event) => {
+                            event.currentTarget.src = NONE_COVER_URL
+                          }}
+                        />
+                        <span>
+                          {book.title}
+                          <em className={`admin-status status-${book.status || 'published'}`}>{book.status || 'published'}</em>
+                        </span>
+                        <small>{getAuthor(book)} - {getCategory(book)} - {chapters.length} chapters</small>
+                        <div className="admin-row-actions">
+                          {warnings.length > 0 && <strong>{warnings.length} warnings</strong>}
+                          <button className="ghost-button" onClick={() => editManagedBook(book)} type="button">Edit</button>
+                          <button className="ghost-button" onClick={() => removeManagedBook(book.id)} type="button">Remove</button>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p>No books match this filter on this shelf.</p>
+                )}
+              </section>
+
+              <section className="admin-table admin-guidelines">
+                <h2>Main site checklist</h2>
+                <div className="admin-check-row">
+                  <i className="bi bi-house" />
+                  <span>Home needs title, cover, category, and author.</span>
+                </div>
+                <div className="admin-check-row">
+                  <i className="bi bi-journal-text" />
+                  <span>Detail needs description, pages, chapters, language, and subjects.</span>
+                </div>
+                <div className="admin-check-row">
+                  <i className="bi bi-book" />
+                  <span>Reader needs reader URL, full reader text, or chapter content.</span>
+                </div>
+              </section>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {activeAdminSection === 'team' && canManageUsers ? (
+        <>
+          <div className="metrics admin-metrics">
+            <article><strong>{managerAccounts.length}</strong><span>Managers</span></article>
+            <article><strong>{employeeAccounts.length}</strong><span>Employees</span></article>
+            <article><strong>{customerAccounts.length}</strong><span>Customers</span></article>
+            <article><strong>{lockedCustomers}</strong><span>Locked customers</span></article>
           </div>
 
-          <div className="admin-two-col">
-            <section className="admin-table">
-              <h2>Managed books</h2>
-              {filteredManagedBooks.length ? (
-                filteredManagedBooks.map((book) => {
-                  const totalPages = getTotalPages(book)
-                  const chapters = getBookChapters(book, totalPages)
-                  const warnings = getBookWarnings(book)
+          <section className="admin-workspace">
+            <div className="section-heading">
+              <div>
+                <p className="mono-eyebrow">Team access</p>
+                <h2>Users</h2>
+              </div>
+              <span>{isAdmin ? 'Manage managers, employees, and customers' : 'Manage employees and customers'}</span>
+            </div>
 
-                  return (
-                    <div className="table-row admin-book-row" key={book.id}>
-                      <img
-                        src={getAdminCover(book)}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.src = NONE_COVER_URL
-                        }}
-                      />
-                      <span>
-                        {book.title}
-                        <em className={`admin-status status-${book.status || 'published'}`}>{book.status || 'published'}</em>
-                      </span>
-                      <small>{getAuthor(book)} - {getCategory(book)} - {chapters.length} chapters</small>
+            <div className="admin-filter-bar" aria-label="User type">
+              {userTabsAvailable.map((tab) => (
+                <button className={userTab === tab ? 'active' : ''} key={tab} onClick={() => setUserTab(tab)} type="button">
+                  {userTabLabels[tab]}
+                </button>
+              ))}
+            </div>
+
+            {userTab === 'manager' && isAdmin && (
+              <>
+                <form className="admin-form compact-form" onSubmit={createStaffAccount('manager')}>
+                  <p className="form-note">
+                    Manager accounts log in with their email and the default password <strong>Admin123</strong>. Managers assign employees to a Push Book shelf and manage customer access.
+                  </p>
+                  <label>Name<input name="name" placeholder="Manager name" required /></label>
+                  <label>Email<input name="email" placeholder="manager@bookworm.com" required type="email" /></label>
+                  <button className="primary-button" type="submit">Create manager</button>
+                </form>
+
+                <section className="admin-table staff-table">
+                  <h2>Manager accounts</h2>
+                  {managerAccounts.length ? (
+                    managerAccounts.map((member) => (
+                      <div className="table-row" key={member.email}>
+                        <span>{member.name}</span>
+                        <small>{member.email}</small>
+                        <div className="admin-row-actions">
+                          <button className="ghost-button" onClick={() => removeStaffAccount(member.email)} type="button">Remove</button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No manager accounts yet.</p>
+                  )}
+                </section>
+              </>
+            )}
+
+            {userTab === 'employee' && (
+              <>
+                <form className="admin-form compact-form" onSubmit={createStaffAccount('employee')}>
+                  <p className="form-note">
+                    Employee accounts log in with their email and the default password <strong>Admin123</strong>. Pick one Push Book shelf - employees only manage that shelf.
+                  </p>
+                  <label>Name<input name="name" placeholder="Employee name" required /></label>
+                  <label>Email<input name="email" placeholder="employee@bookworm.com" required type="email" /></label>
+                  <label>
+                    Shelf
+                    <select defaultValue="read" name="section">
+                      <option value="read">To Read</option>
+                      <option value="rent">To Rent</option>
+                    </select>
+                  </label>
+                  <button className="primary-button" type="submit">Create employee</button>
+                </form>
+
+                <section className="admin-table staff-table">
+                  <h2>Employee accounts</h2>
+                  {employeeAccounts.length ? (
+                    employeeAccounts.map((member) => (
+                      <div className="table-row" key={member.email}>
+                        <span>{member.name}</span>
+                        <small>{member.email}</small>
+                        <div className="admin-row-actions">
+                          <select
+                            onChange={(event) => updateEmployeeSection(member.email, event.target.value)}
+                            value={member.section === 'rent' ? 'rent' : 'read'}
+                          >
+                            <option value="read">To Read</option>
+                            <option value="rent">To Rent</option>
+                          </select>
+                          <button className="ghost-button" onClick={() => removeStaffAccount(member.email)} type="button">Remove</button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No employee accounts yet.</p>
+                  )}
+                </section>
+              </>
+            )}
+
+            {userTab === 'customer' && (
+              <section className="admin-table staff-table">
+                <h2>Customer accounts</h2>
+                <p className="form-note">Customers create their own account from Login. Lock an account to flag it for review.</p>
+                {customerAccounts.length ? (
+                  customerAccounts.map((user) => (
+                    <div className="table-row" key={user.email}>
+                      <span>{user.name}</span>
+                      <small>{user.email}</small>
                       <div className="admin-row-actions">
-                        {warnings.length > 0 && <strong>{warnings.length} warnings</strong>}
-                        <button className="ghost-button" onClick={() => editManagedBook(book)} type="button">Edit</button>
-                        <button className="ghost-button" onClick={() => removeManagedBook(book.id)} type="button">Remove</button>
+                        <em className={`admin-status ${user.locked ? 'status-hidden' : 'status-published'}`}>
+                          {user.locked ? 'locked' : 'active'}
+                        </em>
+                        <button className="ghost-button" onClick={() => onToggleUserLock(user.email)} type="button">
+                          {user.locked ? 'Unlock' : 'Lock'}
+                        </button>
                       </div>
                     </div>
-                  )
-                })
-              ) : (
-                <p>No books match this filter.</p>
-              )}
-            </section>
+                  ))
+                ) : (
+                  <p>No customers recorded yet.</p>
+                )}
+              </section>
+            )}
+          </section>
+        </>
+      ) : null}
 
-            <section className="admin-table admin-guidelines">
-              <h2>Main site checklist</h2>
-              <div className="admin-check-row">
-                <i className="bi bi-house" />
-                <span>Home needs title, cover, category, and author.</span>
-              </div>
-              <div className="admin-check-row">
-                <i className="bi bi-journal-text" />
-                <span>Detail needs description, pages, chapters, language, and subjects.</span>
-              </div>
-              <div className="admin-check-row">
-                <i className="bi bi-book" />
-                <span>Reader needs reader URL, full reader text, or chapter content.</span>
-              </div>
-            </section>
-          </div>
-        </section>
-      ) : (
-        <section className="admin-workspace">
-          <div className="section-heading">
-            <div>
-              <p className="mono-eyebrow">Team access</p>
-              <h2>Deputy dev</h2>
-            </div>
-            <span>Management accounts that can maintain the main site</span>
-          </div>
-
-          <form className="admin-form compact-form" onSubmit={addStaff}>
-            <p className="form-note">
-              Staff created here can login with their email and default password <strong>Admin123</strong> to access Management.
-            </p>
-            <label>Name<input name="name" placeholder="Deputy name" /></label>
-            <label>Email<input name="email" placeholder="deputy@bookworm.com" type="email" /></label>
-            <label>
-              Role
-              <select name="role" defaultValue="coop">
-                <option value="deputy-dev">Deputy dev</option>
-                <option value="coop">Coop</option>
-              </select>
-            </label>
-            <button className="primary-button" type="submit">Create account</button>
-          </form>
-
-          <div className="admin-two-col">
-            <section className="admin-table staff-table">
-              <h2>Deputy dev / coop accounts</h2>
-              {staff.length ? (
-                staff.map((member) => (
-                  <div className="table-row" key={member.email}>
-                    <span>{member.name}</span>
-                    <small>{member.email}</small>
-                    <strong>{member.role}</strong>
-                  </div>
-                ))
-              ) : (
-                <p>No deputy or coop accounts yet.</p>
-              )}
-            </section>
-
-            <section className="admin-table">
-              <h2>Known main users</h2>
-              {users.length ? (
-                users.map((user) => (
-                  <div className="table-row" key={user.email}>
-                    <span>{user.name}</span>
-                    <small>{user.email}</small>
-                    <strong>{user.role}</strong>
-                  </div>
-                ))
-              ) : (
-                <p>No users recorded yet.</p>
-              )}
-            </section>
-          </div>
-        </section>
-      )}
+      {activeAdminSection === 'sync' && canSyncCatalog ? <CatalogSyncPanel /> : null}
 
       {showPreview && <AdminDetailPreview book={previewBook} onClose={() => setShowPreview(false)} />}
     </div>
+  )
+}
+
+function CatalogSyncPanel() {
+  const [status, setStatus] = useState(null)
+  const [statusError, setStatusError] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState(null)
+
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [tagBusyId, setTagBusyId] = useState('')
+
+  async function checkStatus() {
+    setChecking(true)
+    setStatusError('')
+    try {
+      const data = await apiFetch('/api/migrate/status')
+      setStatus(data)
+    } catch (error) {
+      setStatusError(error.message)
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  async function runMigration() {
+    setMigrating(true)
+    setMigrationResult(null)
+    setStatusError('')
+    try {
+      const data = await apiFetch('/api/migrate/run', { method: 'POST' })
+      setMigrationResult(data.summary)
+      checkStatus()
+    } catch (error) {
+      setStatusError(error.message)
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  async function searchCatalog(event) {
+    event.preventDefault()
+    setSearching(true)
+    setSearchError('')
+    try {
+      const data = await apiFetch(`/api/books?q=${encodeURIComponent(query)}`)
+      setSearchResults(data.books || [])
+    } catch (error) {
+      setSearchError(error.message)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  async function tagBook(id, usageType) {
+    setTagBusyId(id)
+    try {
+      await apiFetch(`/api/books/${id}/usage-type`, { method: 'PATCH', body: { usageType } })
+      setSearchResults((current) => current.map((book) => (book._id === id ? { ...book, usageType } : book)))
+    } catch (error) {
+      setSearchError(error.message)
+    } finally {
+      setTagBusyId('')
+    }
+  }
+
+  return (
+    <section className="admin-workspace">
+      <div className="section-heading">
+        <div>
+          <p className="mono-eyebrow">MongoDB</p>
+          <h2>Catalog sync</h2>
+        </div>
+        <span>Move BookWorm's Firebase data into MongoDB, and tag imported books with a usage type.</span>
+      </div>
+
+      <div className="admin-validation-panel" aria-live="polite">
+        <strong>Connection status</strong>
+        {status ? (
+          <>
+            <span>
+              <i className={`bi ${status.mongoConnected ? 'bi-check-circle' : 'bi-x-circle'}`} />
+              MongoDB: {status.mongoConnected ? 'connected' : 'not connected'}
+            </span>
+            <span>
+              <i className="bi bi-info-circle" />
+              {status.counts.users} users, {status.counts.books} books in Mongo right now.
+            </span>
+            <span>
+              <i className="bi bi-signpost" />
+              {status.recommendation === 'run-migration' && 'Mongo is empty - run the migration to pull data from Firebase.'}
+              {status.recommendation === 'use-mongo-directly' && 'Mongo already has data - safe to use it directly.'}
+              {status.recommendation === 'mongo-unavailable' && 'Mongo is not reachable right now - check MONGODB_URI on the server.'}
+            </span>
+          </>
+        ) : (
+          <span>Press "Check connection" to see whether the app should keep using Firebase or switch to MongoDB.</span>
+        )}
+        {statusError && (
+          <span className="admin-validation-error">
+            <i className="bi bi-x-circle" />
+            {statusError}
+          </span>
+        )}
+      </div>
+
+      <div className="admin-form-actions">
+        <button className="ghost-button" disabled={checking} onClick={checkStatus} type="button">
+          <i className="bi bi-arrow-repeat" />
+          {checking ? 'Checking...' : 'Check connection'}
+        </button>
+        <button className="primary-button" disabled={migrating} onClick={runMigration} type="button">
+          <i className="bi bi-cloud-arrow-up" />
+          {migrating ? 'Migrating...' : 'Migrate Firebase -> MongoDB'}
+        </button>
+      </div>
+
+      {migrationResult && (
+        <div className="admin-validation-panel" aria-live="polite">
+          <strong>Migration finished</strong>
+          <span><i className="bi bi-check-circle" />{migrationResult.usersUpserted} users upserted.</span>
+          <span><i className="bi bi-check-circle" />{migrationResult.booksUpserted} books upserted.</span>
+          {migrationResult.errors?.length > 0 && (
+            <span className="admin-validation-warning">
+              <i className="bi bi-exclamation-circle" />
+              {migrationResult.errors.length} rows skipped - open the browser console/network tab for details.
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="section-heading">
+        <div>
+          <p className="mono-eyebrow">MongoDB books</p>
+          <h2>Tag a book's usage type</h2>
+        </div>
+        <span>Search the "books" collection and set read / rent / both / none.</span>
+      </div>
+
+      <form className="admin-form compact-form" onSubmit={searchCatalog}>
+        <label className="wide-field">
+          Search by title
+          <input onChange={(event) => setQuery(event.target.value)} placeholder="The Declaration of Independence" value={query} />
+        </label>
+        <button className="primary-button" disabled={searching} type="submit">
+          <i className="bi bi-search" />
+          {searching ? 'Searching...' : 'Search'}
+        </button>
+      </form>
+      {searchError && <p className="settings-error">{searchError}</p>}
+
+      <section className="admin-table staff-table">
+        {searchResults.length ? (
+          searchResults.map((book) => (
+            <div className="table-row" key={book._id}>
+              <span>{book.title || book.Title || 'Untitled'}</span>
+              <small>{book.author || book.Authors || 'Unknown author'}</small>
+              <div className="admin-row-actions">
+                <select
+                  disabled={tagBusyId === book._id}
+                  onChange={(event) => tagBook(book._id, event.target.value)}
+                  value={book.usageType || 'none'}
+                >
+                  {usageTypeChoices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>{choice.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p>No results yet - search above to tag books.</p>
+        )}
+      </section>
+    </section>
   )
 }
 

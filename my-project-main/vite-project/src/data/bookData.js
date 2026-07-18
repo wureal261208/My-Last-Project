@@ -47,6 +47,11 @@ export function mergeBookCatalogs(primaryBooks = [], secondaryBooks = fallbackBo
   return uniqueBooks
 }
 
+export const BOOK_ACCESS_LABELS = {
+  read: 'To Read',
+  rent: 'To Rent',
+}
+
 export const ROLE_LABELS = {
   guest: 'Guest',
   customer: 'Customer',

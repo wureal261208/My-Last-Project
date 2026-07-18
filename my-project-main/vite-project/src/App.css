@@ -1250,6 +1250,16 @@ progress {
   --app-accent: #0f8d7f;
 }
 
+.app-theme-ink {
+  --app-bg: #121316;
+  --app-surface: #1b1d22;
+  --app-surface-soft: #202329;
+  --app-text: #edeef2;
+  --app-muted: #9a9fac;
+  --app-line: #2c2f37;
+  --app-accent: #7c8cf8;
+}
+
 
 
 .book-app .page-shell,
@@ -3841,7 +3851,7 @@ progress {
 }
 
 .theme-swatch-ink {
-  background: linear-gradient(135deg, #000000 50%, #ffffff 50%);
+  background: linear-gradient(135deg, #121316 50%, #7c8cf8 50%);
 }
 
 .settings-error {

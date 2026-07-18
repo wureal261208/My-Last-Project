@@ -12,7 +12,11 @@ const navItems = [
 ]
 const managementNavIds = ['profile', 'admin']
 
-function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme = 'paper' }) {
+const themeOrder = ['paper', 'mint', 'ink']
+const themeIcons = { paper: 'bi-sun', mint: 'bi-moon-stars', ink: 'bi-moon' }
+const themeNextLabel = { paper: 'Switch to Mint theme', mint: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
+
+function AppShell({ account, children, onAuth, onGuest, onLogout, setWebsiteTheme, websiteTheme = 'paper' }) {
   const { activePage, isPageLoading, navigateTo } = useNavigation()
 
 
@@ -20,7 +24,7 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
   const [rememberedAdminAccess, setRememberedAdminAccess] = useState(false)
   const normalizedRole = normalizeRole(account?.role)
   const isGuest = normalizedRole === 'guest'
-  const isAdmin = hasAccess(normalizedRole, 'manager')
+  const isAdmin = hasAccess(normalizedRole, 'employee')
   const isAdminPage = activePage === 'admin'
   const canShowAdminNav = isAdmin || isAdminPage || rememberedAdminAccess
   const isManagementNavContext = canShowAdminNav && managementNavIds.includes(activePage)
@@ -72,7 +76,7 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
   }
 
   return (
-    <div className={`book-app app-theme-${websiteTheme === 'ink' ? 'paper' : websiteTheme}`}>
+    <div className={`book-app app-theme-${websiteTheme}`}>
       <header className="site-header">
         <button className="brand-button" onClick={handleLogoClick} type="button">
           <img src={logo} alt="BookWorm logo" />
@@ -99,6 +103,21 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, websiteTheme =
         </nav>
 
         <div className="header-account">
+          {typeof setWebsiteTheme === 'function' && (
+            <div className="quick-theme-toggle">
+              <button
+                aria-label={themeNextLabel[websiteTheme] || 'Switch theme'}
+                onClick={() => {
+                  const nextIndex = (themeOrder.indexOf(websiteTheme) + 1) % themeOrder.length
+                  setWebsiteTheme(themeOrder[nextIndex])
+                }}
+                title={themeNextLabel[websiteTheme] || 'Switch theme'}
+                type="button"
+              >
+                <i className={`bi ${themeIcons[websiteTheme] || 'bi-sun'}`} />
+              </button>
+            </div>
+          )}
           <button className="avatar-chip" onClick={() => (isGuest ? onAuth() : navigateTo('profile'))} type="button">
             <span>
               {account?.avatar ? <img src={account.avatar} alt="" /> : getInitials(displayName)}

@@ -1,0 +1,43 @@
+/* global process */
+import 'dotenv/config'
+import express from 'express'
+
+import cors from 'cors'
+import { connectMongo, isMongoConnected } from './db.js'
+import usersRouter from './routes/users.js'
+import booksRouter from './routes/books.js'
+import migrateRouter from './routes/migrate.js'
+
+const app = express()
+const PORT = process.env.PORT || 4000
+
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || true }))
+app.use(express.json({ limit: '2mb' }))
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, mongoConnected: isMongoConnected() })
+})
+
+app.use('/api/users', usersRouter)
+app.use('/api/books', booksRouter)
+app.use('/api/migrate', migrateRouter)
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found.' })
+})
+
+// eslint-disable-next-line no-unused-vars
+app.use((error, req, res, next) => {
+  console.error('[server] unhandled error:', error)
+  res.status(500).json({ error: 'Internal server error.' })
+})
+
+connectMongo()
+  .catch((error) => {
+    console.error('[server] starting without a Mongo connection:', error.message)
+  })
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`[server] BookWorm API listening on http://localhost:${PORT}`)
+    })
+  })

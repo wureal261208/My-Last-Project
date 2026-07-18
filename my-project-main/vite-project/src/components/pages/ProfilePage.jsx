@@ -265,6 +265,7 @@ function ProfileSettings({
             {[
               ['paper', 'Paper'],
               ['mint', 'Mint'],
+              ['ink', 'Dark'],
             ].map(([value, label]) => (
               <button
                 className={websiteTheme === value ? 'active' : ''}
