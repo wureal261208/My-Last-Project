@@ -492,11 +492,8 @@ function App() {
     const lockedRecord = knownUsers.find((item) => item.email === account.email)
     if (!lockedRecord?.locked) return
 
-    // Avoid setState directly in the effect body
-    queueMicrotask(async () => {
-      await signOut(auth)
-      setToast({ type: 'error', message: 'This account has been locked. Contact a manager or admin.' })
-    })
+    signOut(auth)
+    setToast({ type: 'error', message: 'This account has been locked. Contact a manager or admin.' })
   }, [account.email, account.role, knownUsers])
 
   useEffect(() => {

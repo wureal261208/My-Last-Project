@@ -1,7 +1,5 @@
-/* global process */
 import 'dotenv/config'
 import express from 'express'
-
 import cors from 'cors'
 import { connectMongo, isMongoConnected } from './db.js'
 import usersRouter from './routes/users.js'

@@ -1,8 +1,6 @@
-/* global process */
 import mongoose from 'mongoose'
 
 let connectPromise = null
-
 
 /**
  * Connects to MongoDB Atlas using MONGODB_URI from the environment.

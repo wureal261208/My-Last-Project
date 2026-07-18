@@ -1,7 +1,5 @@
-/* global process */
 import admin from 'firebase-admin'
 import User from '../models/User.js'
-
 
 let adminInitialized = false
 
