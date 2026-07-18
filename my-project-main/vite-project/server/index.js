@@ -2,6 +2,8 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { connectMongo, isMongoConnected } from './db.js'
+import { ensureFirebaseAdmin } from './firebaseAdmin.js'
+import { startPollingSync } from './sync/pollingSync.js'
 import usersRouter from './routes/users.js'
 import booksRouter from './routes/books.js'
 import migrateRouter from './routes/migrate.js'
@@ -31,6 +33,14 @@ app.use((error, req, res, next) => {
 })
 
 connectMongo()
+  .then(() => {
+    try {
+      ensureFirebaseAdmin()
+      startPollingSync({ intervalMs: Number(process.env.SYNC_INTERVAL_MS) || 15000 })
+    } catch (error) {
+      console.warn('[server] polling sync not started:', error.message)
+    }
+  })
   .catch((error) => {
     console.error('[server] starting without a Mongo connection:', error.message)
   })

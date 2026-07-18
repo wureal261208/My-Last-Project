@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import admin from 'firebase-admin'
+import admin from '../firebaseAdmin.js'
 import { isMongoConnected } from '../db.js'
 import User from '../models/User.js'
 import Book from '../models/Book.js'

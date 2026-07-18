@@ -176,14 +176,16 @@ function AdminPage({
       if (!name || !email) return
 
       const section = staffRole === 'employee' ? (form.get('section') === 'rent' ? 'rent' : 'read') : null
-      const next = { id: Date.now(), name, email, role: staffRole, section }
+      const next = { id: Date.now(), name, email, role: staffRole, section, updatedAt: new Date().toISOString() }
       setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
       event.currentTarget.reset()
     }
   }
 
   function updateEmployeeSection(email, section) {
-    setStaff((current) => current.map((item) => (item.email === email ? { ...item, section } : item)))
+    setStaff((current) => current.map((item) => (
+      item.email === email ? { ...item, section, updatedAt: new Date().toISOString() } : item
+    )))
   }
 
   function removeStaffAccount(email) {

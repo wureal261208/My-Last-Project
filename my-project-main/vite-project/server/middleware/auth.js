@@ -1,27 +1,5 @@
-import admin from 'firebase-admin'
+import admin, { ensureFirebaseAdmin } from '../firebaseAdmin.js'
 import User from '../models/User.js'
-
-let adminInitialized = false
-
-function ensureFirebaseAdmin() {
-  if (adminInitialized) return
-  if (admin.apps.length) {
-    adminInitialized = true
-    return
-  }
-
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT
-  if (!raw) {
-    throw new Error(
-      'FIREBASE_SERVICE_ACCOUNT is not set. Paste the full service-account JSON (Firebase Console > ' +
-        'Project settings > Service accounts > Generate new private key) as one line into server/.env.',
-    )
-  }
-
-  const serviceAccount = JSON.parse(raw)
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
-  adminInitialized = true
-}
 
 const adminEmails = (process.env.ADMIN_EMAILS || '')
   .split(',')
