@@ -24,7 +24,7 @@ import {
 import { NavigationProvider } from './context/NavigationContext'
 import { auth } from './firebase'
 import { getAuthor, getCategory, getReaderUrl } from './utils/bookUtils'
-import { buildRentalRecord, formatRentalExpiry, getRentalStatus } from './utils/rentalUtils'
+import { buildRentalRecord, formatDeliveryDate, formatRentalExpiry, getRentalStatus } from './utils/rentalUtils'
 import {
   globalDataDefaults,
   migrateLegacyComments,
@@ -46,6 +46,7 @@ const DiscoverPage = lazy(() => import('./components/pages/DiscoverPage'))
 const HomePage = lazy(() => import('./components/pages/HomePage'))
 const ProfilePage = lazy(() => import('./components/pages/ProfilePage'))
 const ReaderPage = lazy(() => import('./components/pages/ReaderPage'))
+const RentRequestPage = lazy(() => import('./components/pages/RentRequestPage'))
 
 const emptyAuthForm = { name: '', email: '', password: '' }
 const emptyAdminBook = {
@@ -74,6 +75,7 @@ const PAGE_PATHS = {
   detail: '/book',
   reader: '/reader',
   profile: '/profile',
+  requests: '/requests',
   admin: '/admin',
   auth: '/auth',
 }
@@ -145,6 +147,8 @@ function App() {
   const [authForm, setAuthForm] = useState(emptyAuthForm)
   const [adminBook, setAdminBook] = useState(emptyAdminBook)
   const [knownUsers, setKnownUsers] = useState(globalDataDefaults.knownUsers)
+  const [rentalRequests, setRentalRequests] = useState(globalDataDefaults.rentalRequests)
+  const [notifications, setNotifications] = useState(globalDataDefaults.notifications)
   const [globalDataReady, setGlobalDataReady] = useState(false)
   const [userDataReady, setUserDataReady] = useState(false)
   const accountSettingsRef = useRef(accountSettings)
@@ -299,6 +303,8 @@ function App() {
           bookReaders: data.bookReaders || {},
           staff: data.staff || [],
           knownUsers: data.knownUsers || [],
+          rentalRequests: data.rentalRequests || [],
+          notifications: data.notifications || [],
         }
 
         globalDataSnapshotRef.current = data.needsManagedBooksCleanup ? '' : stableStringify(nextData)
@@ -314,6 +320,8 @@ function App() {
         }
         setStaff(nextData.staff)
         setKnownUsers(nextData.knownUsers)
+        setRentalRequests(nextData.rentalRequests)
+        setNotifications(nextData.notifications)
         setGlobalDataReady(true)
       },
       (error) => {
@@ -545,13 +553,15 @@ function App() {
       bookReaders,
       staff,
       knownUsers,
+      rentalRequests,
+      notifications,
     }
     const nextSnapshot = stableStringify(nextGlobalData)
     if (nextSnapshot === globalDataSnapshotRef.current) return
 
     globalDataSnapshotRef.current = nextSnapshot
     saveGlobalData(nextGlobalData).catch(handleDataSyncError)
-  }, [bookReaders, globalDataReady, handleDataSyncError, knownUsers, managedBooks, staff, viewCounts])
+  }, [bookReaders, globalDataReady, handleDataSyncError, knownUsers, managedBooks, notifications, rentalRequests, staff, viewCounts])
 
   useEffect(() => {
     if (account.role === 'guest' || !userDataReady) return
@@ -819,6 +829,79 @@ function App() {
     setToast({ type: 'success', message: `${book.title} is now rented for reading. ${formatRentalExpiry(nextRental)}` })
   }
 
+  function submitRentalRequest(book, details = {}) {
+    if (!book?.id) return
+
+    if (account.role === 'guest') {
+      setToast({ type: 'error', message: 'Login to request a rental.' })
+      navigateTo('auth')
+      return
+    }
+
+    const alreadyPending = rentalRequests.some((item) => (
+      item.bookId === book.id && item.customerEmail === account.email && item.status === 'pending'
+    ))
+    if (alreadyPending) {
+      setToast({ type: 'error', message: `You already have a pending order for ${book.title}.` })
+      return
+    }
+
+    const nextRequest = {
+      id: `request-${Date.now()}`,
+      bookId: book.id,
+      bookTitle: book.title,
+      customerEmail: account.email,
+      customerName: account.name || account.email,
+      recipientName: (details.recipientName || account.name || '').trim(),
+      phone: (details.phone || '').trim(),
+      address: (details.address || '').trim(),
+      paymentMethod: details.paymentMethod || 'cod',
+      note: (details.note || '').trim(),
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      deliveryAt: null,
+      decidedAt: null,
+      decidedBy: null,
+    }
+    setRentalRequests((current) => [nextRequest, ...current])
+    setToast({ type: 'success', message: `Order placed for ${book.title}. A manager will confirm the delivery date.` })
+  }
+
+  function decideRentalRequest(requestId, { status, deliveryAt = null, responseNote = '' }) {
+    const request = rentalRequests.find((item) => item.id === requestId)
+    if (!request) return
+
+    setRentalRequests((current) => current.map((item) => (
+      item.id === requestId
+        ? { ...item, status, deliveryAt, decidedAt: new Date().toISOString(), decidedBy: account.email }
+        : item
+    )))
+
+    const message = status === 'approved'
+      ? `Your order for "${request.bookTitle}" was approved. Expected delivery: ${deliveryAt ? formatDeliveryDate(deliveryAt) : 'to be confirmed'}. Pay cash on delivery.${responseNote ? ` Note: ${responseNote}` : ''}`
+      : `Your order for "${request.bookTitle}" was declined.${responseNote ? ` Reason: ${responseNote}` : ''}`
+
+    setNotifications((current) => [
+      {
+        id: `notification-${Date.now()}`,
+        targetEmail: request.customerEmail,
+        type: status === 'approved' ? 'rental-approved' : 'rental-declined',
+        message,
+        bookTitle: request.bookTitle,
+        deliveryAt,
+        createdAt: new Date().toISOString(),
+        read: false,
+      },
+      ...current,
+    ])
+  }
+
+  function markNotificationRead(notificationId) {
+    setNotifications((current) => current.map((item) => (
+      item.id === notificationId ? { ...item, read: true } : item
+    )))
+  }
+
   function toggleUserLock(email) {
     setKnownUsers((current) => current.map((item) => (
       item.email === email ? { ...item, locked: !item.locked } : item
@@ -1018,6 +1101,26 @@ function App() {
         websiteTheme={websiteTheme}
       />
     ),
+    requests: account.role === 'guest' ? (
+      <div className="section-block guest-prompt">
+        <p className="mono-eyebrow">Rental requests</p>
+        <h2>Login to request a rental</h2>
+        <p>Create an account or log in to send a rental request and track its status.</p>
+        <button className="primary-button" onClick={() => navigateTo('auth')} type="button">
+          <i className="bi bi-box-arrow-in-right" />
+          Go to login
+        </button>
+      </div>
+    ) : (
+      <RentRequestPage
+        account={account}
+        books={allBooks}
+        notifications={notifications}
+        onMarkNotificationRead={markNotificationRead}
+        onSubmitRequest={submitRentalRequest}
+        rentalRequests={rentalRequests}
+      />
+    ),
     admin: hasAccess(account.role, 'employee') ? (
       <AdminPage
         account={account}
@@ -1033,6 +1136,8 @@ function App() {
         staff={staff}
         users={knownUsers}
         onToggleUserLock={toggleUserLock}
+        onDecideRentalRequest={decideRentalRequest}
+        rentalRequests={rentalRequests}
       />
     ) : null,
   }
@@ -1041,7 +1146,7 @@ function App() {
 
   return (
     <NavigationProvider value={navigation}>
-      <AppShell account={account} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} setWebsiteTheme={setWebsiteTheme} websiteTheme={websiteTheme}>
+      <AppShell account={account} notifications={notifications} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} onOpenRequests={() => navigateTo('requests')} setWebsiteTheme={setWebsiteTheme} websiteTheme={websiteTheme}>
         <Suspense fallback={<PageFallback />}>{pages[activePage] || pages.home}</Suspense>
         {toast && <AppToast message={toast.message} onClose={() => setToast(null)} type={toast.type} />}
       </AppShell>

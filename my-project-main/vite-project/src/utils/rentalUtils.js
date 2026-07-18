@@ -33,3 +33,15 @@ export function formatRentalExpiry(rental, now = new Date()) {
 export function getRentalLabel(rental, now = new Date()) {
   return getRentalStatus(rental, now) === 'active' ? 'Rented' : 'Expired'
 }
+
+export function formatDeliveryDate(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}

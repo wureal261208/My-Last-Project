@@ -8,6 +8,8 @@ export const globalDataDefaults = {
   comments: {},
   staff: [],
   knownUsers: [],
+  rentalRequests: [],
+  notifications: [],
 }
 
 export const userDataDefaults = {

@@ -7,6 +7,7 @@ import { hasAccess, normalizeRole } from '../../data/bookData'
 const navItems = [
   { id: 'home', label: 'Home', icon: 'bi-house' },
   { id: 'discover', label: 'Discover', icon: 'bi-compass' },
+  { id: 'requests', label: 'Rent a book', icon: 'bi-bag-plus', private: true },
   { id: 'profile', label: 'Profile', icon: 'bi-person-circle', private: true },
   { id: 'admin', label: 'Management', icon: 'bi-shield-lock', admin: true },
 ]
@@ -16,7 +17,7 @@ const themeOrder = ['paper', 'mint', 'ink']
 const themeIcons = { paper: 'bi-sun', mint: 'bi-moon-stars', ink: 'bi-moon' }
 const themeNextLabel = { paper: 'Switch to Mint theme', mint: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
 
-function AppShell({ account, children, onAuth, onGuest, onLogout, setWebsiteTheme, websiteTheme = 'paper' }) {
+function AppShell({ account, children, notifications = [], onAuth, onGuest, onLogout, onOpenRequests, setWebsiteTheme, websiteTheme = 'paper' }) {
   const { activePage, isPageLoading, navigateTo } = useNavigation()
 
 
@@ -29,6 +30,9 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, setWebsiteThem
   const canShowAdminNav = isAdmin || isAdminPage || rememberedAdminAccess
   const isManagementNavContext = canShowAdminNav && managementNavIds.includes(activePage)
   const displayName = account?.name || 'None Account'
+  const unreadNotifications = isGuest
+    ? 0
+    : notifications.filter((item) => item.targetEmail === account?.email && !item.read).length
   const visibleNavItems = navItems.filter((item) => {
     if (isManagementNavContext && !managementNavIds.includes(item.id)) return false
     if (item.admin && !canShowAdminNav) return false
@@ -103,6 +107,18 @@ function AppShell({ account, children, onAuth, onGuest, onLogout, setWebsiteThem
         </nav>
 
         <div className="header-account">
+          {!isGuest && (
+            <button
+              aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ''}`}
+              className="notification-bell"
+              onClick={() => (onOpenRequests ? onOpenRequests() : navigateTo('requests'))}
+              title="Rental requests and notifications"
+              type="button"
+            >
+              <i className="bi bi-bell" />
+              {unreadNotifications > 0 && <span className="notification-badge">{unreadNotifications}</span>}
+            </button>
+          )}
           {typeof setWebsiteTheme === 'function' && (
             <div className="quick-theme-toggle">
               <button

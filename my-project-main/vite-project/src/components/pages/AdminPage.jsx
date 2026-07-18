@@ -3,6 +3,7 @@ import { getAuthor, getCategory, getDescription, getReaderUrl } from '../../util
 import { getBookChapters, getTotalPages } from '../../utils/chapterUtils'
 import { normalizeRole } from '../../data/bookData'
 import { apiFetch } from '../../utils/apiClient'
+import { formatDeliveryDate } from '../../utils/rentalUtils'
 
 const identityFields = [
   { name: 'title', label: 'Title', placeholder: 'Book title' },
@@ -55,6 +56,8 @@ function AdminPage({
   staff,
   users,
   onToggleUserLock,
+  onDecideRentalRequest,
+  rentalRequests = [],
 }) {
   const role = normalizeRole(account?.role)
   const isAdmin = role === 'admin'
@@ -68,11 +71,13 @@ function AdminPage({
   const canPushBooks = isAdmin || isEmployee
   const canManageUsers = isAdmin || isManager
   const canSyncCatalog = isAdmin
+  const canReviewRequests = isAdmin || isManager
   const availableBookSections = isAdmin ? ['read', 'rent'] : isEmployee ? [mySection] : []
 
   const availableSections = [
     canPushBooks && 'book',
     canManageUsers && 'team',
+    canReviewRequests && 'requests',
     canSyncCatalog && 'sync',
   ].filter(Boolean)
 
@@ -85,6 +90,8 @@ function AdminPage({
   const [catalogResults, setCatalogResults] = useState([])
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [catalogError, setCatalogError] = useState('')
+  const [managerPrefill, setManagerPrefill] = useState({ name: '', email: '' })
+  const [employeePrefill, setEmployeePrefill] = useState({ name: '', email: '' })
 
   const sectionBooks = useMemo(
     () => managedBooks.filter((book) => (book.access === 'rent' ? 'rent' : 'read') === bookAccess),
@@ -104,6 +111,8 @@ function AdminPage({
   })
 
   const managerAccounts = staff.filter((item) => item.role === 'manager')
+  const pendingRequests = rentalRequests.filter((item) => item.status === 'pending')
+  const decidedRequests = rentalRequests.filter((item) => item.status !== 'pending').slice(0, 20)
   const employeeAccounts = staff.filter((item) => item.role === 'employee')
   const customerAccounts = users.filter((item) => normalizeRole(item.role) === 'customer')
   const lockedCustomers = customerAccounts.filter((item) => item.locked).length
@@ -253,6 +262,13 @@ function AdminPage({
               <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
                 <i className="bi bi-people" />
                 Users
+              </button>
+            )}
+            {availableSections.includes('requests') && (
+              <button className={activeAdminSection === 'requests' ? 'active' : ''} onClick={() => setActiveAdminSection('requests')} type="button">
+                <i className="bi bi-bell" />
+                Rental Requests
+                {pendingRequests.length > 0 && <span className="tab-count-badge">{pendingRequests.length}</span>}
               </button>
             )}
             {availableSections.includes('sync') && (
@@ -636,12 +652,13 @@ function AdminPage({
 
             {userTab === 'manager' && isAdmin && (
               <>
-                <form className="admin-form compact-form" onSubmit={createStaffAccount('manager')}>
+                <ExistingAccountPicker onPick={(user) => setManagerPrefill({ name: user.name, email: user.email })} />
+                <form className="admin-form compact-form" key={managerPrefill.email} onSubmit={createStaffAccount('manager')}>
                   <p className="form-note">
                     Manager accounts log in with their email and the default password <strong>Admin123</strong>. Managers assign employees to a Push Book shelf and manage customer access.
                   </p>
-                  <label>Name<input name="name" placeholder="Manager name" required /></label>
-                  <label>Email<input name="email" placeholder="manager@bookworm.com" required type="email" /></label>
+                  <label>Name<input defaultValue={managerPrefill.name} name="name" placeholder="Manager name" required /></label>
+                  <label>Email<input defaultValue={managerPrefill.email} name="email" placeholder="manager@bookworm.com" required type="email" /></label>
                   <button className="primary-button" type="submit">Create manager</button>
                 </form>
 
@@ -666,12 +683,13 @@ function AdminPage({
 
             {userTab === 'employee' && (
               <>
-                <form className="admin-form compact-form" onSubmit={createStaffAccount('employee')}>
+                <ExistingAccountPicker onPick={(user) => setEmployeePrefill({ name: user.name, email: user.email })} />
+                <form className="admin-form compact-form" key={employeePrefill.email} onSubmit={createStaffAccount('employee')}>
                   <p className="form-note">
                     Employee accounts log in with their email and the default password <strong>Admin123</strong>. Pick one Push Book shelf - employees only manage that shelf.
                   </p>
-                  <label>Name<input name="name" placeholder="Employee name" required /></label>
-                  <label>Email<input name="email" placeholder="employee@bookworm.com" required type="email" /></label>
+                  <label>Name<input defaultValue={employeePrefill.name} name="name" placeholder="Employee name" required /></label>
+                  <label>Email<input defaultValue={employeePrefill.email} name="email" placeholder="employee@bookworm.com" required type="email" /></label>
                   <label>
                     Shelf
                     <select defaultValue="read" name="section">
@@ -736,10 +754,173 @@ function AdminPage({
         </>
       ) : null}
 
+      {activeAdminSection === 'requests' && canReviewRequests ? (
+        <RentalRequestsPanel decidedRequests={decidedRequests} onDecide={onDecideRentalRequest} pendingRequests={pendingRequests} />
+      ) : null}
+
       {activeAdminSection === 'sync' && canSyncCatalog ? <CatalogSyncPanel /> : null}
 
       {showPreview && <AdminDetailPreview book={previewBook} onClose={() => setShowPreview(false)} />}
     </div>
+  )
+}
+
+function ExistingAccountPicker({ onPick }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [picked, setPicked] = useState('')
+
+  function handleChange(value) {
+    setQuery(value)
+    setPicked('')
+    setResults([])
+  }
+
+  async function search(event) {
+    event.preventDefault()
+    if (!query.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const data = await apiFetch(`/api/users/search?q=${encodeURIComponent(query.trim())}`)
+      setResults(data.users || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function pick(user) {
+    onPick(user)
+    setPicked(user.email)
+    setResults([])
+    setQuery('')
+  }
+
+  return (
+    <div className="admin-import-panel">
+      <p className="form-note">
+        Search for someone who already has an account (synced via Catalog Sync) instead of typing a brand new person.
+      </p>
+      <form className="admin-form compact-form" onSubmit={search}>
+        <label className="wide-field">
+          Search by name or email
+          <input onChange={(event) => handleChange(event.target.value)} placeholder="jane@bookworm.com" value={query} />
+        </label>
+        <button className="ghost-button" disabled={loading} type="submit">
+          <i className="bi bi-search" />
+          {loading ? 'Searching...' : 'Search'}
+        </button>
+      </form>
+      {error && <p className="settings-error">{error}</p>}
+      {picked && <p className="form-note">Filled the form below with {picked} - review and submit to grant access.</p>}
+      {results.length > 0 && (
+        <div className="book-thumb-list">
+          {results.map((user) => (
+            <button className="book-pick-row" key={user.email} onClick={() => pick(user)} type="button">
+              <div>
+                <strong>{user.name}</strong>
+                <span>{user.email} - currently {user.role}</span>
+              </div>
+              <i className="bi bi-arrow-return-left" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RentalRequestsPanel({ decidedRequests, onDecide, pendingRequests }) {
+  const [draftByRequest, setDraftByRequest] = useState({})
+
+  function updateDraft(requestId, field, value) {
+    setDraftByRequest((current) => ({
+      ...current,
+      [requestId]: { ...current[requestId], [field]: value },
+    }))
+  }
+
+  function approve(request) {
+    const draft = draftByRequest[request.id] || {}
+    if (!draft.deliveryAt) return
+    onDecide?.(request.id, { status: 'approved', deliveryAt: new Date(draft.deliveryAt).toISOString(), responseNote: draft.note || '' })
+  }
+
+  function decline(request) {
+    const draft = draftByRequest[request.id] || {}
+    onDecide?.(request.id, { status: 'declined', responseNote: draft.note || '' })
+  }
+
+  return (
+    <section className="admin-workspace">
+      <div className="section-heading">
+        <div>
+          <p className="mono-eyebrow">Rentals</p>
+          <h2>Rental requests</h2>
+        </div>
+        <span>Approve a request with a delivery date and time, or decline it - the customer gets notified either way.</span>
+      </div>
+
+      <section className="admin-table staff-table">
+        <h2>Pending ({pendingRequests.length})</h2>
+        {pendingRequests.length ? (
+          pendingRequests.map((request) => (
+            <div className="table-row request-review-row" key={request.id}>
+              <span>
+                {request.bookTitle}
+                <em className="admin-status status-draft">pending</em>
+              </span>
+              <small>
+                {request.customerName} ({request.customerEmail}) - requested {new Date(request.requestedAt).toLocaleString()}
+                <br />
+                <i className="bi bi-person" /> {request.recipientName || '-'} - <i className="bi bi-telephone" /> {request.phone || '-'}
+                <br />
+                <i className="bi bi-geo-alt" /> {request.address || '-'} - <i className="bi bi-cash-coin" /> Cash on delivery
+                {request.note && <> - "{request.note}"</>}
+              </small>
+              <div className="admin-row-actions request-decision-actions">
+                <input
+                  aria-label="Delivery date and time"
+                  onChange={(event) => updateDraft(request.id, 'deliveryAt', event.target.value)}
+                  type="datetime-local"
+                  value={draftByRequest[request.id]?.deliveryAt || ''}
+                />
+                <button className="primary-button" disabled={!draftByRequest[request.id]?.deliveryAt} onClick={() => approve(request)} type="button">
+                  Approve
+                </button>
+                <button className="ghost-button" onClick={() => decline(request)} type="button">
+                  Decline
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p>No pending requests right now.</p>
+        )}
+      </section>
+
+      {decidedRequests.length > 0 && (
+        <section className="admin-table staff-table">
+          <h2>Recent decisions</h2>
+          {decidedRequests.map((request) => (
+            <div className="table-row" key={request.id}>
+              <span>{request.bookTitle}</span>
+              <small>
+                {request.customerEmail}
+                {request.status === 'approved' && request.deliveryAt && <> - {formatDeliveryDate(request.deliveryAt)}</>}
+              </small>
+              <div className="admin-row-actions">
+                <em className={`admin-status ${request.status === 'approved' ? 'status-published' : 'status-hidden'}`}>{request.status}</em>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+    </section>
   )
 }
 

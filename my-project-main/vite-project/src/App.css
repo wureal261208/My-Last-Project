@@ -5143,3 +5143,250 @@ progress {
   border-color: #2c2f37;
   color: #edeef2;
 }
+
+/* ==========================================================================
+   Rental requests, notifications, and the "pick an existing account" flow
+   ========================================================================== */
+
+.tab-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #c33b32;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.request-review-row {
+  align-items: flex-start;
+}
+
+.request-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-decision-actions input[type='datetime-local'] {
+  border: 1px solid var(--app-line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.book-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.book-pick-row:hover {
+  border-color: var(--app-accent);
+}
+
+.book-pick-row img {
+  width: 42px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.book-pick-row div {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.book-pick-row strong {
+  color: var(--app-text);
+  font-size: 13.5px;
+}
+
+.book-pick-row span {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.payment-method-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface-soft);
+}
+
+.payment-method-note i {
+  font-size: 20px;
+  color: var(--app-accent);
+}
+
+.payment-method-note strong {
+  display: block;
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.payment-method-note span {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.notification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #c33b32;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.notification-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.notification-list li.unread {
+  border-color: var(--app-accent);
+  background: var(--app-surface-soft);
+}
+
+.notification-list li div {
+  display: grid;
+  gap: 2px;
+}
+
+.notification-list li span {
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.notification-list li small {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.request-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.request-status {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.request-status-pending {
+  background: rgba(255, 200, 120, 0.25);
+  color: #9a6b14;
+}
+
+.request-status-approved {
+  background: rgba(22, 160, 154, 0.16);
+  color: #146b66;
+}
+
+.request-status-declined {
+  background: rgba(195, 59, 50, 0.16);
+  color: #9f1d1d;
+}
+
+.guest-prompt {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 24px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  background: var(--app-surface);
+  text-align: left;
+}
+
+.app-theme-ink .request-status-pending {
+  background: rgba(255, 205, 133, 0.16);
+  color: #ffcd85;
+}
+
+.app-theme-ink .request-status-approved {
+  background: rgba(124, 140, 248, 0.18);
+  color: #7c8cf8;
+}
+
+.app-theme-ink .request-status-declined {
+  background: rgba(255, 139, 139, 0.16);
+  color: #ff8b8b;
+}
+
+.notification-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.notification-bell:hover {
+  border-color: var(--app-accent);
+}
+
+.notification-bell .notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 9.5px;
+  padding: 0 4px;
+}

@@ -67,6 +67,29 @@ router.patch('/:id/lock', requireAuth, requireRole('admin', 'manager'), async (r
   }
 })
 
+// GET /api/users/search?q=name-or-email  (admin + manager)
+// Suggests existing accounts (synced from Firebase via /migrate/run) so a
+// manager/admin can promote a real person instead of typing a brand new
+// account from scratch.
+router.get('/search', requireAuth, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim()
+    if (!q) return res.json({ users: [] })
+
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(escaped, 'i')
+
+    const users = await User.find({ $or: [{ name: pattern }, { email: pattern }] })
+      .select({ name: 1, email: 1, role: 1, section: 1 })
+      .limit(10)
+      .lean()
+
+    res.json({ users })
+  } catch (error) {
+    res.status(500).json({ error: 'User search failed.', detail: error.message })
+  }
+})
+
 // GET /api/users?role=employee  (admin + manager)
 router.get('/', requireAuth, requireRole('admin', 'manager'), async (req, res) => {
   try {
