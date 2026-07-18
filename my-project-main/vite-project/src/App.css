@@ -973,6 +973,54 @@ textarea {
   font-weight: 800;
 }
 
+.book-thumb-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.book-thumb-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.book-thumb-list img {
+  width: 42px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--app-line);
+  flex-shrink: 0;
+}
+
+.book-thumb-list div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.book-thumb-list strong {
+  color: var(--app-text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-thumb-list span {
+  color: var(--app-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
 .shelf-list {
   display: grid;
   gap: 14px;
@@ -4928,4 +4976,170 @@ progress {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ==========================================================================
+   Dark mode polish - AdminDashboard + Reader
+   The admin design system and the fixed-position Reader page predate the
+   paper/mint/dark theme variables and use hardcoded colors, so instead of
+   rewriting hundreds of declarations (risky), this block overrides just the
+   colors that matter for those two areas whenever Dark is active. It is
+   appended last on purpose so it always wins the cascade.
+   ========================================================================== */
+
+.app-theme-ink .admin-page,
+.app-theme-ink .admin-page * {
+  color: var(--app-text);
+}
+
+.app-theme-ink .admin-page a {
+  color: var(--app-accent);
+}
+
+.app-theme-ink .admin-form,
+.app-theme-ink .admin-table,
+.app-theme-ink .admin-workspace,
+.app-theme-ink .metrics article,
+.app-theme-ink .table-row,
+.app-theme-ink .admin-validation-panel,
+.app-theme-ink .admin-chapter-editor,
+.app-theme-ink .admin-cover-picker,
+.app-theme-ink .admin-preview-modal {
+  background: var(--app-surface);
+  border-color: var(--app-line);
+}
+
+.app-theme-ink .admin-sticky-switcher,
+.app-theme-ink .admin-section-tabs,
+.app-theme-ink .admin-filter-bar,
+.app-theme-ink .admin-choice-grid,
+.app-theme-ink .admin-preview-backdrop {
+  background: var(--app-bg);
+}
+
+.app-theme-ink .admin-section-tabs button,
+.app-theme-ink .admin-filter-bar button,
+.app-theme-ink .admin-choice-grid button {
+  background: var(--app-surface);
+  border-color: var(--app-line);
+  color: var(--app-muted);
+}
+
+.app-theme-ink .admin-section-tabs button.active,
+.app-theme-ink .admin-filter-bar button.active,
+.app-theme-ink .admin-choice-grid button.active {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: #0d0e10;
+}
+
+.app-theme-ink .admin-form input,
+.app-theme-ink .admin-form select,
+.app-theme-ink .admin-form textarea,
+.app-theme-ink .compact-form input,
+.app-theme-ink .compact-form select {
+  background: var(--app-bg);
+  border-color: var(--app-line);
+  color: var(--app-text);
+}
+
+.app-theme-ink .primary-button {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: #0d0e10;
+}
+
+.app-theme-ink .ghost-button {
+  background: var(--app-surface);
+  border-color: var(--app-line);
+  color: var(--app-text);
+}
+
+.app-theme-ink .mono-eyebrow,
+.app-theme-ink .table-row small,
+.app-theme-ink .admin-workspace > .section-heading > span,
+.app-theme-ink .form-note {
+  color: var(--app-muted);
+}
+
+.app-theme-ink .status-published {
+  background: rgba(124, 140, 248, 0.18);
+  color: var(--app-accent);
+}
+
+.app-theme-ink .status-hidden {
+  background: rgba(240, 100, 100, 0.18);
+  color: #ff8b8b;
+}
+
+.app-theme-ink .status-draft {
+  background: rgba(255, 200, 120, 0.16);
+  color: #ffcd85;
+}
+
+.app-theme-ink .admin-validation-error {
+  color: #ff8b8b;
+}
+
+.app-theme-ink .admin-validation-warning {
+  color: #ffcd85;
+}
+
+/* Reader - align the existing "Night" reader theme with the same dark
+   palette and accent used across the rest of the app for one consistent
+   look, and soften pure black to reduce harsh contrast. */
+.reader-night {
+  background: #16171b;
+  color: #edeef2;
+}
+
+.reader-night h2,
+.reader-night h3 {
+  color: #ffffff;
+}
+
+.reader-night .reader-frame {
+  background: #1b1d22;
+}
+
+.reader-night .reader-topbar,
+.reader-night .reader-controls,
+.reader-night .chapter-panel,
+.reader-night .reader-comments-panel,
+.reader-night .reader-frame {
+  border-color: #2c2f37;
+  background: #1b1d22;
+  color: #edeef2;
+}
+
+.reader-night input,
+.reader-night select,
+.reader-night textarea {
+  border-color: #2c2f37;
+  background: #16171b;
+  color: #ffffff;
+}
+
+.reader-night label,
+.reader-night .reader-page-meter {
+  color: #edeef2;
+}
+
+.reader-night .mono-eyebrow,
+.reader-night .reader-page-meter small,
+.reader-night .reader-progress-meta small {
+  color: #9a9fac;
+}
+
+.reader-night .reader-quick-actions button.active,
+.reader-night .primary-button {
+  background: #7c8cf8;
+  border-color: #7c8cf8;
+  color: #0d0e10;
+}
+
+.reader-night .ghost-button {
+  background: #1b1d22;
+  border-color: #2c2f37;
+  color: #edeef2;
 }

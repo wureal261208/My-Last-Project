@@ -999,8 +999,11 @@ function App() {
         favorites={favorites}
         history={history}
         highlights={highlights}
+        onDetail={openDetail}
+        onFavorite={toggleFavorite}
         onProfileUpdate={updateAccountProfile}
         onRead={openBook}
+        onRent={toggleRental}
         onResetPassword={resetAccountPassword}
         rentals={rentals}
         progress={progress}

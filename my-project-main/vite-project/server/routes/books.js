@@ -57,6 +57,61 @@ router.patch('/:id/usage-type', requireAuth, requireRole('admin'), async (req, r
   }
 })
 
+// GET /api/books/catalog-search?q=title  (admin, manager, employee)
+// Searches the raw imported Gutenberg catalog (Title/Authors/Bookshelves/...)
+// and returns pre-filled draft fields the client can drop straight into the
+// Push Book form - this is what makes "pushing" a book fast instead of
+// typing every field by hand.
+router.get('/catalog-search', requireAuth, requireRole('admin', 'manager', 'employee'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim()
+    if (!q) return res.json({ books: [] })
+
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Prefix match on purpose: with 75k+ documents, an anchored regex can
+    // use an index on Title efficiently, while a "contains" search cannot.
+    const prefixPattern = new RegExp(`^${escaped}`, 'i')
+
+    const docs = await Book.find({ $or: [{ Title: prefixPattern }, { title: prefixPattern }] })
+      .select({ Title: 1, title: 1, Authors: 1, author: 1, Bookshelves: 1, Subjects: 1, Language: 1, 'Etext Number': 1, usageType: 1, rights: 1 })
+      .limit(20)
+      .lean()
+
+    const books = docs.map((doc) => {
+      const gutenbergId = doc['Etext Number']
+      const title = doc.Title || doc.title || 'Untitled'
+      const author = doc.Authors || doc.author || 'Unknown author'
+      const bookshelves = String(doc.Bookshelves || '').split(';').map((item) => item.trim()).filter(Boolean)
+      const subjects = String(doc.Subjects || '')
+        .split(';')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 6)
+
+      return {
+        _id: doc._id,
+        gutenbergId,
+        title,
+        author,
+        category: bookshelves[0] || subjects[0] || 'Classic',
+        subjects,
+        language: doc.Language || 'en',
+        usageType: doc.usageType || 'none',
+        description: `A public-domain title by ${author}, hosted on Project Gutenberg.${
+          subjects.length ? ` Subjects: ${subjects.slice(0, 3).join(', ')}.` : ''
+        }${doc.rights ? ` ${doc.rights}` : ''}`,
+        cover: gutenbergId ? `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.cover.medium.jpg` : '',
+        readerUrl: gutenbergId ? `https://www.gutenberg.org/files/${gutenbergId}/${gutenbergId}-h/${gutenbergId}-h.htm` : '',
+        plainTextUrl: gutenbergId ? `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt` : '',
+      }
+    })
+
+    res.json({ books })
+  } catch (error) {
+    res.status(500).json({ error: 'Catalog search failed.', detail: error.message })
+  }
+})
+
 // GET /api/books?q=title&usageType=none  (any signed-in staff)
 router.get('/', requireAuth, requireRole('admin', 'manager', 'employee'), async (req, res) => {
   try {

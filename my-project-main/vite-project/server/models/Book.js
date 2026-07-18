@@ -19,6 +19,10 @@ const bookSchema = new mongoose.Schema(
   { timestamps: true, collection: 'books', strict: false },
 )
 
+// Speeds up the prefix search used by /books/catalog-search across 75k+ docs.
+bookSchema.index({ Title: 1 })
+bookSchema.index({ title: 1 })
+
 // Case-insensitive lookup helper used by /books/add to avoid duplicates,
 // since imported records may use `Title` and app-created ones use `title`.
 bookSchema.statics.findByTitle = function findByTitle(title) {

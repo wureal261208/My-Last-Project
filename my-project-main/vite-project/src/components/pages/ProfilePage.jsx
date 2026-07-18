@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getInitials } from '../../utils/bookUtils'
+import { getAuthor, getCover, getInitials } from '../../utils/bookUtils'
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -20,8 +20,14 @@ function maskEmail(email) {
 
 function ProfilePage({
   account,
+  books = [],
+  favorites = [],
+  onDetail,
+  onFavorite,
   onProfileUpdate,
+  onRead,
   onResetPassword,
+  progress = {},
   readerFontSize,
   readerTheme,
   rentals = [],
@@ -35,8 +41,14 @@ function ProfilePage({
       <ProfileSettings
         key={account?.id || account?.email || 'guest'}
         account={account}
+        books={books}
+        favorites={favorites}
+        onDetail={onDetail}
+        onFavorite={onFavorite}
         onProfileUpdate={onProfileUpdate}
+        onRead={onRead}
         onResetPassword={onResetPassword}
+        progress={progress}
         readerFontSize={readerFontSize}
         readerTheme={readerTheme}
         rentals={rentals}
@@ -51,8 +63,14 @@ function ProfilePage({
 
 function ProfileSettings({
   account,
+  books = [],
+  favorites = [],
+  onDetail,
+  onFavorite,
   onProfileUpdate,
+  onRead,
   onResetPassword,
+  progress = {},
   readerFontSize,
   readerTheme,
   rentals = [],
@@ -66,6 +84,10 @@ function ProfileSettings({
   const [settingsError, setSettingsError] = useState('')
   const [settingsLoading, setSettingsLoading] = useState(false)
   const roleLabel = (account?.role || 'customer').charAt(0).toUpperCase() + (account?.role || 'customer').slice(1)
+  const continueReading = books
+    .filter((book) => (progress[book.id] || 0) > 0 && (progress[book.id] || 0) < 100)
+    .slice(0, 6)
+  const savedBooks = books.filter((book) => favorites.includes(book.id)).slice(0, 8)
 
   const safeName = displayName || account?.name || 'Reader'
   const safeEmail = account?.email || 'No email linked yet'
@@ -216,6 +238,51 @@ function ProfileSettings({
             </ul>
           ) : (
             <p className="settings-copy">No rentals yet. Rent a book from the library to see it here.</p>
+          )}
+        </div>
+
+        <div className="account-settings-card">
+          <SettingsHeading icon="bi-bookmark-star" kicker="Continue reading" title="Pick up where you left off" />
+          {continueReading.length ? (
+            <ul className="book-thumb-list">
+              {continueReading.map((book) => (
+                <li key={book.id}>
+                  <img alt="" src={getCover(book)} />
+                  <div>
+                    <strong>{book.title}</strong>
+                    <span>{getAuthor(book)} - {Math.round(progress[book.id] || 0)}% read</span>
+                  </div>
+                  <button className="ghost-button" onClick={() => onRead?.(book)} type="button">Resume</button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="settings-copy">Nothing in progress yet. Open a book from Home or Discover to start reading.</p>
+          )}
+        </div>
+
+        <div className="account-settings-card">
+          <SettingsHeading icon="bi-heart" kicker="Saved" title="Favorites" />
+          {savedBooks.length ? (
+            <ul className="book-thumb-list">
+              {savedBooks.map((book) => (
+                <li key={book.id}>
+                  <img alt="" src={getCover(book)} />
+                  <div>
+                    <strong>{book.title}</strong>
+                    <span>{getAuthor(book)}</span>
+                  </div>
+                  <button className="ghost-button" onClick={() => (onDetail ? onDetail(book) : onRead?.(book))} type="button">View</button>
+                  {onFavorite && (
+                    <button aria-label="Remove from favorites" className="ghost-button" onClick={() => onFavorite(book.id)} type="button">
+                      <i className="bi bi-heart-fill" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="settings-copy">No saved books yet. Tap the heart icon on any book to save it here.</p>
           )}
         </div>
 

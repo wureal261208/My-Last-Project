@@ -81,6 +81,10 @@ function AdminPage({
   const [userTab, setUserTab] = useState(isAdmin ? 'manager' : 'employee')
   const [bookFilter, setBookFilter] = useState('all')
   const [showPreview, setShowPreview] = useState(false)
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [catalogResults, setCatalogResults] = useState([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState('')
 
   const sectionBooks = useMemo(
     () => managedBooks.filter((book) => (book.access === 'rent' ? 'rent' : 'read') === bookAccess),
@@ -186,6 +190,37 @@ function AdminPage({
     addManagedBook(event)
   }
 
+  async function searchCatalog(event) {
+    event.preventDefault()
+    if (!catalogQuery.trim()) return
+
+    setCatalogLoading(true)
+    setCatalogError('')
+    try {
+      const data = await apiFetch(`/api/books/catalog-search?q=${encodeURIComponent(catalogQuery.trim())}`)
+      setCatalogResults(data.books || [])
+    } catch (error) {
+      setCatalogError(error.message)
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  function importCatalogBook(book) {
+    setAdminBook({
+      ...adminBook,
+      title: book.title || adminBook.title,
+      author: book.author || adminBook.author,
+      category: book.category || adminBook.category,
+      subjects: book.subjects?.length ? book.subjects.join(', ') : adminBook.subjects,
+      description: book.description || adminBook.description,
+      cover: book.cover || adminBook.cover,
+      readerUrl: book.readerUrl || adminBook.readerUrl,
+      language: 'en',
+      access: bookAccess,
+    })
+  }
+
   return (
     <div className="admin-page">
       <section className="page-title admin-title">
@@ -281,6 +316,46 @@ function AdminPage({
                 You only manage the <strong>{mySection === 'read' ? 'To Read' : 'To Rent'}</strong> shelf. Ask a manager or admin to move you to the other one.
               </p>
             )}
+
+            <div className="admin-import-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="mono-eyebrow">MongoDB catalog - 75k+ books</p>
+                  <h2>Import instead of typing</h2>
+                </div>
+                <span>Search your synced Gutenberg catalog and prefill the form below in one click.</span>
+              </div>
+              <form className="admin-form compact-form" onSubmit={searchCatalog}>
+                <label className="wide-field">
+                  Search by title
+                  <input
+                    onChange={(event) => setCatalogQuery(event.target.value)}
+                    placeholder="Pride and Prejudice"
+                    value={catalogQuery}
+                  />
+                </label>
+                <button className="primary-button" disabled={catalogLoading} type="submit">
+                  <i className="bi bi-search" />
+                  {catalogLoading ? 'Searching...' : 'Search catalog'}
+                </button>
+              </form>
+              {catalogError && <p className="settings-error">{catalogError}</p>}
+              {catalogResults.length > 0 && (
+                <section className="admin-table staff-table">
+                  {catalogResults.map((book) => (
+                    <div className="table-row" key={book._id}>
+                      <span>{book.title}</span>
+                      <small>{book.author} - Gutenberg #{book.gutenbergId || 'n/a'}</small>
+                      <div className="admin-row-actions">
+                        <button className="ghost-button" onClick={() => importCatalogBook(book)} type="button">
+                          Use this book
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              )}
+            </div>
 
             <div className="admin-validation-panel" aria-live="polite">
               <strong>{currentErrors.length ? 'Cannot push yet' : currentWarnings.length ? 'Ready with notes' : 'Ready checklist'}</strong>
