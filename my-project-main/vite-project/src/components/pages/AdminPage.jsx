@@ -178,18 +178,32 @@ function AdminPage({
       const section = staffRole === 'employee' ? (form.get('section') === 'rent' ? 'rent' : 'read') : null
       const next = { id: Date.now(), name, email, role: staffRole, section, updatedAt: new Date().toISOString() }
       setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
+      syncStaffToMongo({ name, email, role: staffRole, section })
       event.currentTarget.reset()
     }
   }
 
   function updateEmployeeSection(email, section) {
+    const member = staff.find((item) => item.email === email)
     setStaff((current) => current.map((item) => (
       item.email === email ? { ...item, section, updatedAt: new Date().toISOString() } : item
     )))
+    if (member) syncStaffToMongo({ name: member.name, email, role: 'employee', section })
   }
 
   function removeStaffAccount(email) {
     setStaff((current) => current.filter((item) => item.email !== email))
+    syncStaffToMongo({ email, role: 'user', section: null })
+  }
+
+  async function syncStaffToMongo(details) {
+    try {
+      await apiFetch('/api/users/upsert-by-email', { method: 'PATCH', body: details })
+    } catch (error) {
+      // Firestore already has the change (that's what the live site reads),
+      // so a Mongo sync failure here is non-fatal - just surface it quietly.
+      console.warn('Could not sync staff account to MongoDB:', error.message)
+    }
   }
 
   function handleBookSubmit(event) {

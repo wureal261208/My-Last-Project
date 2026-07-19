@@ -67,6 +67,38 @@ router.patch('/:id/lock', requireAuth, requireRole('admin', 'manager'), async (r
   }
 })
 
+// PATCH /api/users/upsert-by-email  (admin + manager)
+// Called right when AdminDashboard creates/edits a staff member in
+// Firestore, so MongoDB reflects the change immediately - no background
+// sync process required.
+router.patch('/upsert-by-email', requireAuth, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { name, email, role, section } = req.body || {}
+    const normalizedEmail = String(email || '').trim().toLowerCase()
+    if (!normalizedEmail || !USER_ROLES.includes(role)) {
+      return res.status(400).json({ error: `email is required and role must be one of: ${USER_ROLES.join(', ')}` })
+    }
+    if (role !== 'user' && req.authUser.role !== 'admin' && role === 'manager') {
+      return res.status(403).json({ error: 'Only an admin can create manager accounts.' })
+    }
+
+    const user = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        $set: {
+          name: name || normalizedEmail,
+          role,
+          section: role === 'employee' ? (section === 'rent' ? 'rent' : 'read') : null,
+        },
+      },
+      { upsert: true, new: true },
+    )
+    res.json({ user })
+  } catch (error) {
+    res.status(500).json({ error: 'Could not sync user to MongoDB.', detail: error.message })
+  }
+})
+
 // GET /api/users/search?q=name-or-email  (admin + manager)
 // Suggests existing accounts (synced from Firebase via /migrate/run) so a
 // manager/admin can promote a real person instead of typing a brand new

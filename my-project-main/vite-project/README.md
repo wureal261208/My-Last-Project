@@ -133,3 +133,21 @@ npm run build
 `/api/reader-text` is available in local development through `vite.config.js` and on Vercel through `api/reader-text/[...path].js`. `vercel.json` rewrites client routes such as `/reader`, `/profile`, and `/admin` back to the React app so direct links and refreshes do not 404.
 
 For Vercel, set the project root directory to `vite-project`, build command to `npm run build`, and output directory to `dist`.
+
+### MongoDB API (Vercel Serverless Functions)
+
+`api/users/[[...path]].js`, `api/books/[[...path]].js`, and `api/migrate/[[...path]].js` expose the MongoDB-backed REST API (Manager/Employee accounts, book catalog import/tagging, Firebase-to-Mongo migration) as Vercel serverless functions - no separate backend host needed. They reuse the same route handlers as `server/routes/*.js`, which you can also run locally with `npm run server` for testing against `http://127.0.0.1:4000`.
+
+Set these in Vercel Project Settings -> Environment Variables (Production and Preview):
+
+```text
+MONGODB_URI=<your Atlas connection string>
+MONGODB_DB_NAME=schema
+ADMIN_EMAILS=<comma-separated admin emails>
+FIREBASE_SERVICE_ACCOUNT=<entire service-account JSON, one line>
+CLIENT_ORIGIN=<your Vercel deployment URL, e.g. https://your-app.vercel.app>
+```
+
+Realtime data (managed books, staff, rental requests, notifications) stays on Firestore's `onSnapshot` listeners and needs none of the above - it works straight from the browser with zero extra hosting. Only the MongoDB-backed features (Catalog Sync, account search/promotion, book usage tagging) depend on these serverless functions and their env vars.
+
+`server/sync/pollingSync.js` (a background job that keeps Firestore staff and MongoDB users reconciled every few seconds) is **not used** in the Vercel deployment, since serverless functions don't stay running between requests. Staff promotions instead write to Firestore and MongoDB in the same click (see `syncStaffToMongo` in `AdminPage.jsx`), which covers the same need without requiring an always-on server. The polling worker is kept in the codebase as an optional upgrade if you later host `server/` somewhere persistent (Fly.io, Render, a VPS, etc.).

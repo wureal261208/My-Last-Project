@@ -1,6 +1,10 @@
 import { auth } from '../firebase'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:4000'
+// In production the API lives at /api/* on the same Vercel deployment as the
+// app, so requests should be relative (no separate backend to host). In
+// local dev, default to the standalone server (`npm run server`) on :4000,
+// unless VITE_API_BASE_URL overrides it either way.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? '' : 'http://127.0.0.1:4000')
 
 export async function apiFetch(path, options = {}) {
   const user = auth.currentUser
