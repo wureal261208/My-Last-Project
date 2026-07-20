@@ -3,7 +3,7 @@ import admin from '../firebaseAdmin.js'
 import { isMongoConnected } from '../db.js'
 import User from '../models/User.js'
 import Book from '../models/Book.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js'
 
 const router = Router()
 
@@ -11,7 +11,7 @@ const router = Router()
 // Tells the AdminDashboard which data source is currently usable, so the
 // UI can decide: "Mongo is ready, use it directly" vs "Mongo is empty,
 // offer to migrate from Firebase first".
-router.get('/status', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/status', requireJwtAuth, requireRole('admin'), async (req, res) => {
   const mongoConnected = isMongoConnected()
   const [bookCount, userCount] = mongoConnected
     ? await Promise.all([Book.countDocuments(), User.countDocuments()])
@@ -33,7 +33,7 @@ router.get('/status', requireAuth, requireRole('admin'), async (req, res) => {
 // Reads BookWorm's Firestore data with the Firebase Admin SDK and upserts
 // it into MongoDB. Safe to re-run: existing documents are matched by email
 // (users) or title (books) instead of being duplicated.
-router.post('/run', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/run', requireJwtAuth, requireRole('admin'), async (req, res) => {
   try {
     if (!admin.apps.length) {
       return res.status(500).json({

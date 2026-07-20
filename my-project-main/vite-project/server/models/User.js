@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema(
     section: { type: String, enum: ['read', 'rent', null], default: null },
     firebaseUid: { type: String, default: null },
     locked: { type: Boolean, default: false },
+    // bcrypt hash - never store or return the plain password.
+    passwordHash: { type: String, default: null, select: false },
+    // Hash of the currently-valid refresh token (rotated on every /auth/refresh
+    // call). Storing the hash, not the raw token, means a leaked database
+    // dump can't be used to forge sessions.
+    refreshTokenHash: { type: String, default: null, select: false },
   },
   { timestamps: true, collection: 'users' },
 )
