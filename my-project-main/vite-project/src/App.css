@@ -5390,3 +5390,314 @@ progress {
   font-size: 9.5px;
   padding: 0 4px;
 }
+
+/* ==========================================================================
+   Mongo demo app (/mongo-app) - JWT auth + MongoDB backed pages
+   ========================================================================== */
+
+.mongo-app {
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: var(--font-body);
+}
+
+.mongo-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--app-line);
+  background: var(--app-surface);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.mongo-brand {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--app-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mongo-brand span {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--app-muted);
+  margin-left: 6px;
+}
+
+.mongo-nav {
+  display: flex;
+  gap: 18px;
+  flex: 1;
+}
+
+.mongo-nav a {
+  color: var(--app-muted);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.mongo-nav a:hover {
+  color: var(--app-text);
+}
+
+.mongo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mongo-user-chip {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--app-muted);
+}
+
+.mongo-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+  display: grid;
+  gap: 20px;
+}
+
+.mongo-loading {
+  padding: 40px;
+  text-align: center;
+}
+
+/* Search autocomplete */
+.mongo-autocomplete {
+  position: relative;
+  max-width: 480px;
+}
+
+.mongo-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: var(--app-surface);
+}
+
+.mongo-search-box i.bi-search {
+  color: var(--app-muted);
+}
+
+.mongo-search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  flex: 1;
+  font-size: 14px;
+  color: var(--app-text);
+}
+
+.mongo-search-spinner {
+  color: var(--app-accent);
+  animation: adbFade 800ms linear infinite;
+}
+
+.mongo-autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.mongo-autocomplete-dropdown li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mongo-autocomplete-dropdown li button:hover {
+  background: var(--app-surface-soft);
+}
+
+.mongo-autocomplete-dropdown img {
+  width: 32px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.mongo-autocomplete-dropdown strong {
+  display: block;
+  font-size: 12.5px;
+  color: var(--app-text);
+}
+
+.mongo-autocomplete-dropdown span {
+  font-size: 11px;
+  color: var(--app-muted);
+}
+
+/* Notification bell dropdown */
+.mongo-notification {
+  position: relative;
+}
+
+.mongo-notification-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+  padding: 12px;
+  z-index: 30;
+}
+
+.mongo-notification-dropdown strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--app-muted);
+  margin-bottom: 8px;
+}
+
+.mongo-notification-dropdown ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mongo-notification-dropdown li a {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: var(--app-text);
+  font-size: 12.5px;
+}
+
+.mongo-notification-dropdown li a:hover {
+  background: var(--app-surface-soft);
+}
+
+.mongo-notification-dropdown li i {
+  color: var(--app-accent);
+  margin-top: 2px;
+}
+
+/* Book grid */
+.mongo-book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.mongo-book-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  background: var(--app-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mongo-book-card:hover {
+  border-color: var(--app-accent);
+}
+
+.mongo-book-card img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.mongo-book-card strong {
+  font-size: 13px;
+  color: var(--app-text);
+}
+
+.mongo-book-card span {
+  font-size: 11.5px;
+  color: var(--app-muted);
+}
+
+/* Detail page */
+.mongo-detail-header {
+  display: flex;
+  gap: 20px;
+}
+
+.mongo-detail-header img {
+  width: 140px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.mongo-login {
+  display: flex;
+  justify-content: center;
+  padding-top: 30px;
+}
+
+.mongo-login .account-settings-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+.mongo-notification-dropdown li button {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--app-text);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.mongo-notification-dropdown li button:hover {
+  background: var(--app-surface-soft);
+}
+
+.mongo-notification-dropdown li button i {
+  color: var(--app-accent);
+  margin-top: 2px;
+  flex-shrink: 0;
+}

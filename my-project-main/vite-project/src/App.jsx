@@ -1146,7 +1146,7 @@ function App() {
 
   return (
     <NavigationProvider value={navigation}>
-      <AppShell account={account} notifications={notifications} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} onOpenRequests={() => navigateTo('requests')} setWebsiteTheme={setWebsiteTheme} websiteTheme={websiteTheme}>
+      <AppShell account={account} managedBooks={managedBooks} notifications={notifications} onAuth={goAuth} onGuest={goGuest} onLogout={handleLogout} onOpenRequests={() => navigateTo('requests')} rentalRequests={rentalRequests} setWebsiteTheme={setWebsiteTheme} staff={staff} websiteTheme={websiteTheme}>
         <Suspense fallback={<PageFallback />}>{pages[activePage] || pages.home}</Suspense>
         {toast && <AppToast message={toast.message} onClose={() => setToast(null)} type={toast.type} />}
       </AppShell>

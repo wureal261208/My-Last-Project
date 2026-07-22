@@ -17,7 +17,20 @@ const themeOrder = ['paper', 'mint', 'ink']
 const themeIcons = { paper: 'bi-sun', mint: 'bi-moon-stars', ink: 'bi-moon' }
 const themeNextLabel = { paper: 'Switch to Mint theme', mint: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
 
-function AppShell({ account, children, notifications = [], onAuth, onGuest, onLogout, onOpenRequests, setWebsiteTheme, websiteTheme = 'paper' }) {
+function AppShell({
+  account,
+  children,
+  managedBooks = [],
+  notifications = [],
+  onAuth,
+  onGuest,
+  onLogout,
+  onOpenRequests,
+  rentalRequests = [],
+  setWebsiteTheme,
+  staff = [],
+  websiteTheme = 'paper',
+}) {
   const { activePage, isPageLoading, navigateTo } = useNavigation()
 
 
@@ -33,6 +46,20 @@ function AppShell({ account, children, notifications = [], onAuth, onGuest, onLo
   const unreadNotifications = isGuest
     ? 0
     : notifications.filter((item) => item.targetEmail === account?.email && !item.read).length
+
+  const myStaffRecord = staff.find((item) => (item.email || '').toLowerCase() === (account?.email || '').toLowerCase())
+  const myShelfSection = myStaffRecord?.section === 'rent' ? 'rent' : myStaffRecord?.section === 'read' ? 'read' : null
+  const isEmployeeOnly = normalizedRole === 'employee'
+
+  const pendingRentalRequests = isAdmin ? rentalRequests.filter((item) => item.status === 'pending') : []
+  const recentPushedBooks = isAdmin
+    ? [...managedBooks]
+        .filter((book) => !isEmployeeOnly || !myShelfSection || (book.access === 'rent' ? 'rent' : 'read') === myShelfSection)
+        .sort((a, b) => getBookPushTimestamp(b.id) - getBookPushTimestamp(a.id))
+        .slice(0, 4)
+    : []
+  const staffNotificationCount = pendingRentalRequests.length + recentPushedBooks.length
+  const [showStaffNotifications, setShowStaffNotifications] = useState(false)
   const visibleNavItems = navItems.filter((item) => {
     if (isManagementNavContext && !managementNavIds.includes(item.id)) return false
     if (item.admin && !canShowAdminNav) return false
@@ -107,7 +134,72 @@ function AppShell({ account, children, notifications = [], onAuth, onGuest, onLo
         </nav>
 
         <div className="header-account">
-          {!isGuest && (
+          {!isGuest && isAdmin && (
+            <div className="mongo-notification" style={{ position: 'relative' }}>
+              <button
+                aria-label={`Notifications${staffNotificationCount ? ` (${staffNotificationCount})` : ''}`}
+                className="notification-bell"
+                onClick={() => setShowStaffNotifications((value) => !value)}
+                title="Rental requests and push activity"
+                type="button"
+              >
+                <i className="bi bi-bell" />
+                {staffNotificationCount > 0 && <span className="notification-badge">{staffNotificationCount}</span>}
+              </button>
+              {showStaffNotifications && (
+                <div className="mongo-notification-dropdown">
+                  <strong>Rental requests</strong>
+                  {pendingRentalRequests.length ? (
+                    <ul>
+                      {pendingRentalRequests.slice(0, 4).map((request) => (
+                        <li key={request.id}>
+                          <button
+                            onClick={() => {
+                              setShowStaffNotifications(false)
+                              navigateTo('admin')
+                            }}
+                            type="button"
+                          >
+                            <i className="bi bi-bag-check" />
+                            <span>{request.customerName} wants to rent "{request.bookTitle}" - needs confirmation.</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="settings-copy">No pending rental requests.</p>
+                  )}
+
+                  <strong style={{ marginTop: 10 }}>
+                    {isEmployeeOnly && myShelfSection ? `Recently pushed to ${myShelfSection === 'rent' ? 'To Rent' : 'To Read'}` : 'Recently pushed books'}
+                  </strong>
+                  {recentPushedBooks.length ? (
+                    <ul>
+                      {recentPushedBooks.map((book) => (
+                        <li key={book.id}>
+                          <button
+                            onClick={() => {
+                              setShowStaffNotifications(false)
+                              navigateTo('admin')
+                            }}
+                            type="button"
+                          >
+                            <i className="bi bi-journal-plus" />
+                            <span>
+                              "{book.title}" pushed to {book.access === 'rent' ? 'To Rent' : 'To Read'}.
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="settings-copy">No recent push activity.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {!isGuest && !isAdmin && (
             <button
               aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ''}`}
               className="notification-bell"
@@ -196,6 +288,11 @@ function AppShell({ account, children, notifications = [], onAuth, onGuest, onLo
       )}
     </div>
   )
+}
+
+function getBookPushTimestamp(id) {
+  const match = /^managed-(\d+)$/.exec(id || '')
+  return match ? Number(match[1]) : 0
 }
 
 export default AppShell
