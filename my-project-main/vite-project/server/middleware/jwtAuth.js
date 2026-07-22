@@ -35,16 +35,25 @@ export async function requireJwtAuth(req, res, next) {
     const decoded = await admin.auth().verifyIdToken(token)
     const email = (decoded.email || '').toLowerCase()
 
-    let role = 'user'
-    if (adminEmails.includes(email)) {
-      role = 'admin'
-    } else {
-      const dbUser = await User.findOne({ email })
-      if (dbUser?.locked) return res.status(403).json({ error: 'This account has been locked.' })
-      if (dbUser?.role) role = dbUser.role
+    let dbUser = await User.findOne({ email })
+    if (dbUser?.locked) return res.status(403).json({ error: 'This account has been locked.' })
+
+    if (!dbUser) {
+      // First time this Firebase-authenticated person hits a Mongo-backed
+      // route - create a matching Mongo user so Rental/Comment records have
+      // a real ObjectId to reference. No password: this account can only be
+      // used via Firebase login, never via /api/auth/login.
+      dbUser = await User.create({
+        name: decoded.name || email.split('@')[0] || 'BookWorm user',
+        email,
+        role: adminEmails.includes(email) ? 'admin' : 'user',
+      })
+    } else if (adminEmails.includes(email) && dbUser.role !== 'admin') {
+      dbUser.role = 'admin'
+      await dbUser.save()
     }
 
-    req.authUser = { uid: decoded.uid, email, role }
+    req.authUser = { uid: String(dbUser._id), email, role: dbUser.role, section: dbUser.section || null }
     next()
   } catch (error) {
     res.status(401).json({ error: 'Invalid or expired session.', detail: error.message })

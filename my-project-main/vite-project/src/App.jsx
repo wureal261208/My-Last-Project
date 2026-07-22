@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth'
 import AuthPage from './components/auth/AuthPage'
 import AppShell from './components/layout/AppShell'
+import { apiFetch } from './utils/apiClient'
 import {
   ADMIN_EMAIL,
   ADMIN_EMAILS,
@@ -865,6 +866,30 @@ function App() {
     }
     setRentalRequests((current) => [nextRequest, ...current])
     setToast({ type: 'success', message: `Order placed for ${book.title}. A manager will confirm the delivery date.` })
+    syncRentalToMongo(nextRequest)
+  }
+
+  async function syncRentalToMongo(request) {
+    try {
+      const data = await apiFetch('/api/rentals', {
+        method: 'POST',
+        body: {
+          bookId: request.bookId,
+          bookTitle: request.bookTitle,
+          recipientName: request.recipientName,
+          phone: request.phone,
+          address: request.address,
+          note: request.note,
+        },
+      })
+      setRentalRequests((current) => current.map((item) => (
+        item.id === request.id ? { ...item, mongoRentalId: data.rental.id } : item
+      )))
+    } catch (error) {
+      // Firestore already has the order (that's what the live UI reads), so
+      // a Mongo sync failure here is non-fatal - just log it quietly.
+      console.warn('Could not sync rental to MongoDB:', error.message)
+    }
   }
 
   function decideRentalRequest(requestId, { status, deliveryAt = null, responseNote = '' }) {
@@ -894,6 +919,14 @@ function App() {
       },
       ...current,
     ])
+
+    if (request.mongoRentalId) {
+      const path = status === 'approved' ? `/api/rentals/${request.mongoRentalId}/approve` : `/api/rentals/${request.mongoRentalId}/decline`
+      const body = status === 'approved' ? { deliveryAt } : undefined
+      apiFetch(path, { method: 'PATCH', body }).catch((error) => {
+        console.warn('Could not sync rental decision to MongoDB:', error.message)
+      })
+    }
   }
 
   function markNotificationRead(notificationId) {
