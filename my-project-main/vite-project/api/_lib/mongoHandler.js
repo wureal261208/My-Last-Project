@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { connectMongo } from '../../server/db.js'
+import { corsOptions } from '../../server/utils/cors.js'
 
 /**
  * Wraps one of our existing Express routers (server/routes/*.js) so it can
@@ -12,7 +13,7 @@ import { connectMongo } from '../../server/db.js'
  */
 export function createMongoHandler(router, basePath) {
   const app = express()
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN || true }))
+  app.use(cors(corsOptions()))
   app.use(express.json({ limit: '2mb' }))
 
   app.use(async (req, res, next) => {

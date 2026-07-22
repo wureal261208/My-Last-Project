@@ -4,6 +4,7 @@ import cors from 'cors'
 import { connectMongo, isMongoConnected } from './db.js'
 import { ensureFirebaseAdmin } from './firebaseAdmin.js'
 import { startPollingSync } from './sync/pollingSync.js'
+import { corsOptions } from './utils/cors.js'
 import authRouter from './routes/auth.js'
 import usersRouter from './routes/users.js'
 import booksRouter from './routes/books.js'
@@ -14,7 +15,7 @@ import migrateRouter from './routes/migrate.js'
 const app = express()
 const PORT = process.env.PORT || 4000
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || true }))
+app.use(cors(corsOptions()))
 app.use(express.json({ limit: '2mb' }))
 
 app.get('/api/health', (req, res) => {
