@@ -1,6 +1,6 @@
 import { createMongoHandler } from '../_lib/mongoHandler.js'
-import { ensureFirebaseAdmin } from '../../server/firebaseAdmin.js'
-import migrateRouter from '../../server/routes/migrate.js'
+import { ensureFirebaseAdmin } from '../../backend/firebaseAdmin.js'
+import migrateRouter from '../../backend/routes/migrate.js'
 
 try {
   ensureFirebaseAdmin()

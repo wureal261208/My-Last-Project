@@ -1,10 +1,10 @@
 import express from 'express'
 import cors from 'cors'
-import { connectMongo } from '../../server/db.js'
-import { corsOptions } from '../../server/utils/cors.js'
+import { connectMongo } from '../../backend/db.js'
+import { corsOptions } from '../../backend/utils/cors.js'
 
 /**
- * Wraps one of our existing Express routers (server/routes/*.js) so it can
+ * Wraps one of our existing Express routers (backend/routes/*.js) so it can
  * run as a Vercel serverless function - no separate always-on server needed.
  * Mongoose connections are cached across warm invocations by connectMongo().
  *

@@ -2,6 +2,17 @@
 
 BookWorm is a React reading web app for browsing public-domain books, reading by chapter/page, saving notes, tracking progress, and managing book data. The project is structured to match the MindX React course flow: React fundamentals, state/props, UI styling, async data, useEffect, Context, routing behavior, deployment, and final product presentation.
 
+## Project Structure
+
+```text
+vite-project/
+  frontend/     React app (src/, public/, index.html, vite.config.js)
+  backend/      Express + Mongoose API (routes/, models/, scripts/) - also runs locally via `npm run server`
+  api/          Vercel serverless functions - thin wrappers that reuse backend/routes/*.js
+```
+
+Both `npm install` and all `npm run <script>` commands still happen from the `vite-project` root - the split only reorganizes files, it does not change how the project is installed, run, or deployed on Vercel.
+
 ## Current Status
 
 - Data is stored in Firebase Firestore, not browser storage.
@@ -25,13 +36,13 @@ BookWorm is a React reading web app for browsing public-domain books, reading by
 ## MindX Course Mapping
 
 - JavaScript and ES6+: array/object helpers, async functions, module imports, data transformation utilities.
-- ReactJS: component-based UI in `src/components`.
-- State and props: app state is owned in `src/App.jsx` and passed to page components.
-- UI/CSS library: Bootstrap Icons plus custom responsive CSS in `src/App.css`.
+- ReactJS: component-based UI in `frontend/src/components`.
+- State and props: app state is owned in `frontend/src/App.jsx` and passed to page components.
+- UI/CSS library: Bootstrap Icons plus custom responsive CSS in `frontend/src/App.css`.
 - Async and useEffect: Firebase subscriptions, auth session checking, book loading, and reader text loading.
-- Context: `src/context/NavigationContext.jsx` shares navigation behavior across nested components.
+- Context: `frontend/src/context/NavigationContext.jsx` shares navigation behavior across nested components.
 - Routing: React state controls which page renders, while `react-router-dom` mirrors that state into browser URLs for Home, Discover, Detail, Reader, Profile, Admin, and Auth.
-- Custom utilities/hooks style: book/chapter parsing lives in `src/utils`.
+- Custom utilities/hooks style: book/chapter parsing lives in `frontend/src/utils`.
 - Deployment: `npm run build` creates the production build. The reader text proxy needs a server/serverless endpoint for real production hosting.
 
 ## System Flow
@@ -95,7 +106,7 @@ Use Node.js 20.19+ or 22.12+ so Vite 8 and React Router run correctly.
 Create Firebase config when needed:
 
 ```bash
-cp .env.example .env
+cp frontend/.env.example frontend/.env
 ```
 
 Then fill the `VITE_FIREBASE_*` values from Firebase Project Settings. The app also keeps the current Firebase config as a fallback for local demo runs.
@@ -136,7 +147,7 @@ For Vercel, set the project root directory to `vite-project`, build command to `
 
 ### MongoDB API (Vercel Serverless Functions)
 
-`api/users/[[...path]].js`, `api/books/[[...path]].js`, and `api/migrate/[[...path]].js` expose the MongoDB-backed REST API (Manager/Employee accounts, book catalog import/tagging, Firebase-to-Mongo migration) as Vercel serverless functions - no separate backend host needed. They reuse the same route handlers as `server/routes/*.js`, which you can also run locally with `npm run server` for testing against `http://127.0.0.1:4000`.
+`api/users/[[...path]].js`, `api/books/[[...path]].js`, and `api/migrate/[[...path]].js` expose the MongoDB-backed REST API (Manager/Employee accounts, book catalog import/tagging, Firebase-to-Mongo migration) as Vercel serverless functions - no separate backend host needed. They reuse the same route handlers as `backend/routes/*.js`, which you can also run locally with `npm run server` for testing against `http://127.0.0.1:4010` (see `backend/.env`'s `PORT`).
 
 Set these in Vercel Project Settings -> Environment Variables (Production and Preview):
 
@@ -150,4 +161,4 @@ CLIENT_ORIGIN=<your Vercel deployment URL, e.g. https://your-app.vercel.app>
 
 Realtime data (managed books, staff, rental requests, notifications) stays on Firestore's `onSnapshot` listeners and needs none of the above - it works straight from the browser with zero extra hosting. Only the MongoDB-backed features (Catalog Sync, account search/promotion, book usage tagging) depend on these serverless functions and their env vars.
 
-`server/sync/pollingSync.js` (a background job that keeps Firestore staff and MongoDB users reconciled every few seconds) is **not used** in the Vercel deployment, since serverless functions don't stay running between requests. Staff promotions instead write to Firestore and MongoDB in the same click (see `syncStaffToMongo` in `AdminPage.jsx`), which covers the same need without requiring an always-on server. The polling worker is kept in the codebase as an optional upgrade if you later host `server/` somewhere persistent (Fly.io, Render, a VPS, etc.).
+`backend/sync/pollingSync.js` (a background job that keeps Firestore staff and MongoDB users reconciled every few seconds) is **not used** in the Vercel deployment, since serverless functions don't stay running between requests. Staff promotions instead write to Firestore and MongoDB in the same click (see `syncStaffToMongo` in `AdminPage.jsx`), which covers the same need without requiring an always-on server. The polling worker is kept in the codebase as an optional upgrade if you later host `backend/` somewhere persistent (Render, a VPS, etc.).

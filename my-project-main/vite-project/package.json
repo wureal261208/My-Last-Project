@@ -4,14 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "server": "node server/index.js",
-    "server:dev": "node --watch server/index.js",
-    "seed:books": "node server/scripts/seedBooks.js",
-    "make:admin": "node server/scripts/makeAdmin.js"
+    "dev": "cd frontend && vite",
+    "build": "cd frontend && vite build --outDir ../dist",
+    "lint": "cd frontend && eslint .",
+    "preview": "cd frontend && vite preview --outDir ../dist",
+    "server": "node backend/index.js",
+    "server:dev": "node --watch backend/index.js",
+    "seed:books": "node backend/scripts/seedBooks.js",
+    "make:admin": "node backend/scripts/makeAdmin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
