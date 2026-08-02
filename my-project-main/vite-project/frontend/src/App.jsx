@@ -208,7 +208,9 @@ function App() {
     }, 420)
   }, [routerNavigate, scrollToTopForPage])
 
-  const handleDataSyncError = useCallback((error) => {
+  const handleDataSyncError = useCallback((error, source = 'unknown') => {
+    console.error(`[Firestore sync error @ ${source}]`, error?.code, error?.message, error)
+
     const message =
       error?.code === 'permission-denied'
         ? 'Firebase Firestore denied this data sync. Check Firestore rules for BookWorm.'
@@ -312,7 +314,7 @@ function App() {
           setComments((current) => mergeCommentMaps(data.comments, current))
           if (!migratedLegacyCommentsRef.current) {
             migratedLegacyCommentsRef.current = true
-            migrateLegacyComments(data.comments).catch(handleDataSyncError)
+            migrateLegacyComments(data.comments).catch((error) => handleDataSyncError(error, 'migrate-legacy-comments'))
           }
         }
         setStaff(nextData.staff)
@@ -323,7 +325,7 @@ function App() {
       },
       (error) => {
         setGlobalDataReady(true)
-        handleDataSyncError(error)
+        handleDataSyncError(error, 'subscribe-global-data')
       },
     )
   }, [handleDataSyncError])
@@ -407,7 +409,7 @@ function App() {
       },
       (error) => {
         setUserDataReady(true)
-        handleDataSyncError(error)
+        handleDataSyncError(error, 'subscribe-user-data')
       },
     )
   }, [account.id, account.role, handleDataSyncError])
@@ -571,7 +573,7 @@ function App() {
     if (nextSnapshot === globalDataSnapshotRef.current) return
 
     globalDataSnapshotRef.current = nextSnapshot
-    saveGlobalData(nextGlobalData).catch(handleDataSyncError)
+    saveGlobalData(nextGlobalData).catch((error) => handleDataSyncError(error, 'save-global-data'))
   }, [bookReaders, globalDataReady, handleDataSyncError, knownUsers, notifications, rentalRequests, staff, viewCounts])
 
   useEffect(() => {
@@ -581,7 +583,7 @@ function App() {
     if (nextSnapshot === userDataSnapshotRef.current) return
 
     userDataSnapshotRef.current = nextSnapshot
-    saveUserData(account.id, userData).catch(handleDataSyncError)
+    saveUserData(account.id, userData).catch((error) => handleDataSyncError(error, 'save-user-data'))
   }, [account.id, account.role, handleDataSyncError, userData, userDataReady])
 
   const publishedManagedBooks = useMemo(
@@ -789,7 +791,7 @@ function App() {
       ...current,
       [bookId]: [nextComment, ...(current[bookId] || [])].slice(0, 30),
     }))
-    saveBookComment(bookId, nextComment).catch(handleDataSyncError)
+    saveBookComment(bookId, nextComment).catch((error) => handleDataSyncError(error, 'save-book-comment'))
   }
 
   function toggleFavorite(bookId) {
