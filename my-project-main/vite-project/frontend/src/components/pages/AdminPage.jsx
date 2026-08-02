@@ -51,9 +51,12 @@ function AdminPage({
   editManagedBook,
   managedBooks,
   managedBooksError,
+<<<<<<< HEAD
   pendingBooks = [],
   onApproveBook,
   onRejectBook,
+=======
+>>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
   removeManagedBook,
   resetAdminBook,
   setAdminBook,

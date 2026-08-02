@@ -22,7 +22,11 @@ service cloud.firestore {
     match /bookwormData/global {
       allow read: if true;
       allow create: if !('staff' in request.resource.data);
+<<<<<<< HEAD
       allow update: if request.resource.data.get('staff', []) == resource.data.get('staff', []);
+=======
+      allow update: if request.resource.data.staff == resource.data.staff;
+>>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
     }
 
     // Comments also stay open to guests. We can't verify authorship without
