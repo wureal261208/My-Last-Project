@@ -606,10 +606,15 @@ function App() {
   useEffect(() => {
     if (!globalDataReady) return
 
+    // NOTE: `staff` is intentionally left out of this payload. Only the
+    // backend (Firebase Admin SDK, see backend/sync/pollingSync.js) is
+    // allowed to write that field per firestore.rules - if the client
+    // includes it here, whichever value it happens to hold locally can
+    // race against the backend's own writes and trip the security rule
+    // with a permission-denied error.
     const nextGlobalData = {
       viewCounts,
       bookReaders,
-      staff,
       knownUsers,
       rentalRequests,
       notifications,
