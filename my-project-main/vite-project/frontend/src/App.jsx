@@ -591,7 +591,7 @@ function App() {
           setBooks(mergeBookCatalogs(combinedBooks, fallbackBooks))
         }
       } catch {
-        if (!ignore) setBooks(fallbackBooks)
+        if (!ignore) setBooks([])
       } finally {
         if (!ignore) setBooksLoading(false)
       }

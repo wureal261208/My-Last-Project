@@ -14,6 +14,7 @@
     "server": "node backend/index.js",
     "server:dev": "node --watch backend/index.js",
     "seed:books": "node backend/scripts/seedBooks.js",
+    "cleanup:seed-books": "node backend/scripts/removeSeedBooks.js",
     "seed:accounts": "node backend/scripts/seedTestAccounts.js",
     "make:admin": "node backend/scripts/makeAdmin.js"
   },
