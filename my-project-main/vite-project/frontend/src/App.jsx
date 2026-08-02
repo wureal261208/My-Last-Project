@@ -104,10 +104,7 @@ function App() {
   const [, setBooksLoading] = useState(false)
   const [managedBooks, setManagedBooks] = useState([])
   const [managedBooksError, setManagedBooksError] = useState('')
-<<<<<<< HEAD
   const [pendingBooks, setPendingBooks] = useState([])
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
   const [rentals, setRentals] = useState(() => {
     if (typeof window === 'undefined') return []
 
@@ -497,15 +494,12 @@ function App() {
   }, [account.email, account.role, resolveTrustedRole])
 
   useEffect(() => {
-<<<<<<< HEAD
     if (activePage === 'requests' && account.role === 'admin') {
       navigateTo('home', { instant: true, replace: true })
     }
   }, [activePage, account.role, navigateTo])
 
   useEffect(() => {
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
     if (!['admin', 'manager', 'employee'].includes(account.role)) {
       queueMicrotask(() => setManagedBooks([]))
       return
@@ -524,7 +518,6 @@ function App() {
       ignore = true
     }
   }, [account.email, account.role])
-<<<<<<< HEAD
 
   const refreshPendingBooks = useCallback(() => {
     if (account.role !== 'admin') {
@@ -563,8 +556,6 @@ function App() {
       setToast({ type: 'error', message: error.message })
     }
   }
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
 
   useEffect(() => {
     if (account.role === 'guest' || !account.email) return
@@ -1255,12 +1246,9 @@ function App() {
         books={allBooks}
         managedBooks={managedBooks}
         managedBooksError={managedBooksError}
-<<<<<<< HEAD
         pendingBooks={pendingBooks}
         onApproveBook={approveBook}
         onRejectBook={rejectBook}
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
         removeManagedBook={removeManagedBook}
         editManagedBook={editManagedBook}
         resetAdminBook={() => setAdminBook(emptyAdminBook)}

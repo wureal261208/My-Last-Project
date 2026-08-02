@@ -1,32 +1,20 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# dependencies
+node_modules/
 
-node_modules
-dist
-dist-ssr
-*.local
+# build output
+dist/
+frontend/dist/
 
-# Environment / secrets
+# env files - KHONG BAO GIO commit
 .env
-.env.*
-!.env.example
-!frontend/.env.example
-!backend/.env.example
+.env.local
 backend/.env
+frontend/.env
+!*.env.example
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# editor / os
+.vscode/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# vercel
+.vercel

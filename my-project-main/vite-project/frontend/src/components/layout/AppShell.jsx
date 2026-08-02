@@ -15,7 +15,7 @@ const managementNavIds = ['profile', 'admin']
 
 const themeOrder = ['paper', 'ink']
 const themeIcons = { paper: 'bi-sun', ink: 'bi-moon' }
-const themeNextLabel = { paper: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
+const themeNextLabel = { paper: 'Switch to Dark theme', ink: 'Switch to Light theme' }
 
 function AppShell({
   account,

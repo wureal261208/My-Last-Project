@@ -320,8 +320,7 @@ function ProfileSettings({
           <SettingsHeading icon="bi-palette" kicker="Appearance" title="Website theme" />
           <div className="theme-options" role="group" aria-label="Website theme">
             {[
-              ['paper', 'Paper'],
-              ['mint', 'Mint'],
+              ['paper', 'Light'],
               ['ink', 'Dark'],
             ].map(([value, label]) => (
               <button

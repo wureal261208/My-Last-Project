@@ -36,12 +36,8 @@ function serializeBook(doc) {
 
 // An employee only manages the one shelf (read/rent) they were assigned to
 // (User.section) - mirrors the client-side restriction in AdminPage, but
-<<<<<<< HEAD
 // enforced here since that's the only place it actually matters. Admin and
 // Manager are unrestricted (either shelf).
-=======
-// enforced here since that's the only place it actually matters.
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
 function assertBookAccessAllowed(req, res, access) {
   if (req.authUser.role !== 'employee') return true
   if (access === req.authUser.section) return true
@@ -49,7 +45,6 @@ function assertBookAccessAllowed(req, res, access) {
   return false
 }
 
-<<<<<<< HEAD
 // Only an admin can publish (or hide) a book. Manager/Employee submissions
 // always land as 'draft' and wait for an admin to approve them via
 // PATCH /:id/approve - this holds even if a non-admin client sends a
@@ -61,8 +56,6 @@ function resolveBookStatus(req, requestedStatus, fallback) {
   return fallback === 'published' ? 'published' : 'draft'
 }
 
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
 // GET /api/books?q=title&usageType=read&page=1&limit=24 - PUBLIC
 // Powers the Discover page and the Main site catalog. Draft books (manual,
 // unpublished) never show up here - only /mine (staff-only) sees those.
@@ -107,7 +100,6 @@ router.get('/mine', requireJwtAuth, requireRole('admin', 'manager', 'employee'),
   }
 })
 
-<<<<<<< HEAD
 // GET /api/books/pending - admin only - drafts submitted by Manager/Employee
 // waiting for approval before they can appear on the main site.
 router.get('/pending', requireJwtAuth, requireRole('admin'), async (req, res) => {
@@ -119,8 +111,6 @@ router.get('/pending', requireJwtAuth, requireRole('admin'), async (req, res) =>
   }
 })
 
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
 // GET /api/books/catalog-search?q=title - staff only (admin/manager/employee)
 // Internal tool: searches the raw imported Gutenberg catalog and returns
 // pre-filled draft fields for the AdminDashboard "push book" form.
@@ -186,15 +176,9 @@ router.get('/:id', async (req, res) => {
 // POST /api/books - admin + employee (employee restricted to their shelf)
 // Accepts the full hand-curated book record (title, chapters, status,
 // access, etc.) built by the Admin dashboard's "push book" form.
-<<<<<<< HEAD
 router.post('/', requireJwtAuth, requireRole('admin', 'manager', 'employee'), async (req, res) => {
   try {
     const { title, access, status } = req.body || {}
-=======
-router.post('/', requireJwtAuth, requireRole('admin', 'employee'), async (req, res) => {
-  try {
-    const { title, access } = req.body || {}
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
     if (!title) return res.status(400).json({ error: 'title is required.' })
     if (!assertBookAccessAllowed(req, res, access === 'rent' ? 'rent' : 'read')) return
 
@@ -202,10 +186,7 @@ router.post('/', requireJwtAuth, requireRole('admin', 'employee'), async (req, r
       ...req.body,
       title: String(title).trim(),
       access: access === 'rent' ? 'rent' : 'read',
-<<<<<<< HEAD
       status: resolveBookStatus(req, status, 'draft'),
-=======
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
       source: 'manual',
     })
     res.status(201).json({ book: serializeBook(book.toObject()) })
@@ -249,11 +230,7 @@ router.post('/add', requireJwtAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PUT /api/books/:id - admin + employee (employee restricted to their shelf)
-<<<<<<< HEAD
 router.put('/:id', requireJwtAuth, requireRole('admin', 'manager', 'employee'), async (req, res) => {
-=======
-router.put('/:id', requireJwtAuth, requireRole('admin', 'employee'), async (req, res) => {
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
   try {
     const existing = await Book.findById(req.params.id)
     if (!existing) return res.status(404).json({ error: 'Book not found.' })
@@ -262,12 +239,8 @@ router.put('/:id', requireJwtAuth, requireRole('admin', 'employee'), async (req,
     const nextAccess = req.body?.access === 'rent' ? 'rent' : req.body?.access === 'read' ? 'read' : existing.access
     if (nextAccess !== existing.access && !assertBookAccessAllowed(req, res, nextAccess)) return
 
-<<<<<<< HEAD
     const nextStatus = resolveBookStatus(req, req.body?.status, existing.status)
     Object.assign(existing, req.body, { source: 'manual', access: nextAccess, status: nextStatus })
-=======
-    Object.assign(existing, req.body, { source: 'manual', access: nextAccess })
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
     await existing.save()
     res.json({ book: serializeBook(existing.toObject()) })
   } catch (error) {
@@ -319,11 +292,7 @@ router.patch('/:id/usage-type', requireJwtAuth, requireRole('admin'), async (req
 })
 
 // DELETE /api/books/:id - admin + employee (employee restricted to their shelf)
-<<<<<<< HEAD
 router.delete('/:id', requireJwtAuth, requireRole('admin', 'manager', 'employee'), async (req, res) => {
-=======
-router.delete('/:id', requireJwtAuth, requireRole('admin', 'employee'), async (req, res) => {
->>>>>>> 1d4f13e8535ca0235fae345ff0129c35aa1759b9
   try {
     const existing = await Book.findById(req.params.id)
     if (!existing) return res.status(404).json({ error: 'Book not found.' })
