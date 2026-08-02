@@ -7,15 +7,15 @@ import { hasAccess, normalizeRole } from '../../data/bookData'
 const navItems = [
   { id: 'home', label: 'Home', icon: 'bi-house' },
   { id: 'discover', label: 'Discover', icon: 'bi-compass' },
-  { id: 'requests', label: 'Rent a book', icon: 'bi-bag-plus', private: true },
+  { id: 'requests', label: 'Rent a book', icon: 'bi-bag-plus', private: true, hideForAdmin: true },
   { id: 'profile', label: 'Profile', icon: 'bi-person-circle', private: true },
   { id: 'admin', label: 'Management', icon: 'bi-shield-lock', admin: true },
 ]
 const managementNavIds = ['profile', 'admin']
 
-const themeOrder = ['paper', 'mint', 'ink']
-const themeIcons = { paper: 'bi-sun', mint: 'bi-moon-stars', ink: 'bi-moon' }
-const themeNextLabel = { paper: 'Switch to Mint theme', mint: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
+const themeOrder = ['paper', 'ink']
+const themeIcons = { paper: 'bi-sun', ink: 'bi-moon' }
+const themeNextLabel = { paper: 'Switch to Dark theme', ink: 'Switch to Paper theme' }
 
 function AppShell({
   account,
@@ -38,6 +38,7 @@ function AppShell({
   const [rememberedAdminAccess, setRememberedAdminAccess] = useState(false)
   const normalizedRole = normalizeRole(account?.role)
   const isGuest = normalizedRole === 'guest'
+  const isTrueAdmin = normalizedRole === 'admin'
   const isAdmin = hasAccess(normalizedRole, 'employee')
   const isAdminPage = activePage === 'admin'
   const canShowAdminNav = isAdmin || isAdminPage || rememberedAdminAccess
@@ -64,6 +65,7 @@ function AppShell({
     if (isManagementNavContext && !managementNavIds.includes(item.id)) return false
     if (item.admin && !canShowAdminNav) return false
     if (item.private && isGuest) return false
+    if (item.hideForAdmin && isTrueAdmin) return false
     return true
   })
 

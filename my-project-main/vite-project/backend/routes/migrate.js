@@ -88,16 +88,19 @@ router.post('/run', requireJwtAuth, requireRole('admin'), async (req, res) => {
     for (const book of managedBooks) {
       try {
         if (!book.title) continue
+        const { id: _firestoreId, ...rest } = book
         await Book.findOneAndUpdate(
-          { title: new RegExp(`^${String(book.title).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          { title: new RegExp(`^${String(book.title).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), source: 'manual' },
           {
             $set: {
+              ...rest,
               title: book.title,
               author: book.author || '',
               cover: book.formats?.['image/jpeg'] || book.cover || '',
               description: book.description || '',
-              usageType: book.access === 'rent' ? 'rent' : 'read',
-              source: 'firebase-migration',
+              access: book.access === 'rent' ? 'rent' : 'read',
+              status: book.status || 'published',
+              source: 'manual',
             },
           },
           { upsert: true },

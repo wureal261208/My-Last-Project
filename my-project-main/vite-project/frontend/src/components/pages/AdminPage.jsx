@@ -4,6 +4,7 @@ import { getBookChapters, getTotalPages } from '../../utils/chapterUtils'
 import { normalizeRole } from '../../data/bookData'
 import { apiFetch } from '../../utils/apiClient'
 import { formatDeliveryDate } from '../../utils/rentalUtils'
+import { maskEmail } from '../../utils/maskEmail'
 
 const identityFields = [
   { name: 'title', label: 'Title', placeholder: 'Book title' },
@@ -49,10 +50,13 @@ function AdminPage({
   books,
   editManagedBook,
   managedBooks,
+  managedBooksError,
+  pendingBooks = [],
+  onApproveBook,
+  onRejectBook,
   removeManagedBook,
   resetAdminBook,
   setAdminBook,
-  setStaff,
   staff,
   users,
   onToggleUserLock,
@@ -68,14 +72,16 @@ function AdminPage({
   const myStaffRecord = staff.find((item) => (item.email || '').toLowerCase() === myEmail)
   const mySection = myStaffRecord?.section === 'rent' ? 'rent' : 'read'
 
-  const canPushBooks = isAdmin || isEmployee
+  const canPushBooks = isAdmin || isManager || isEmployee
   const canManageUsers = isAdmin || isManager
   const canSyncCatalog = isAdmin
   const canReviewRequests = isAdmin || isManager
-  const availableBookSections = isAdmin ? ['read', 'rent'] : isEmployee ? [mySection] : []
+  const canApproveBooks = isAdmin
+  const availableBookSections = isAdmin || isManager ? ['read', 'rent'] : isEmployee ? [mySection] : []
 
   const availableSections = [
     canPushBooks && 'book',
+    canApproveBooks && 'approvals',
     canManageUsers && 'team',
     canReviewRequests && 'requests',
     canSyncCatalog && 'sync',
@@ -167,8 +173,19 @@ function AdminPage({
     reader.readAsDataURL(file)
   }
 
+  const [staffActionError, setStaffActionError] = useState('')
+  const [staffActionBusy, setStaffActionBusy] = useState('')
+  const [newStaffCredential, setNewStaffCredential] = useState(null)
+
+  // Every staff mutation now goes through the backend (which checks the
+  // caller's real role from MongoDB, not the client-readable Firestore
+  // copy) and the backend mirrors the result back into Firestore itself.
+  // We deliberately do NOT touch local `staff` state here - the realtime
+  // onSnapshot listener will pick up the backend's write, and the
+  // Firestore rule for bookwormData/global now rejects any client write
+  // that changes the `staff` field directly.
   function createStaffAccount(staffRole) {
-    return function submit(event) {
+    return async function submit(event) {
       event.preventDefault()
       const form = new FormData(event.currentTarget)
       const name = (form.get('name') || '').trim()
@@ -176,33 +193,50 @@ function AdminPage({
       if (!name || !email) return
 
       const section = staffRole === 'employee' ? (form.get('section') === 'rent' ? 'rent' : 'read') : null
-      const next = { id: Date.now(), name, email, role: staffRole, section, updatedAt: new Date().toISOString() }
-      setStaff((current) => [next, ...current.filter((item) => item.email !== next.email)])
-      syncStaffToMongo({ name, email, role: staffRole, section })
-      event.currentTarget.reset()
+      setStaffActionError('')
+      setNewStaffCredential(null)
+      setStaffActionBusy(email)
+      try {
+        const data = await apiFetch('/api/users/upsert-by-email', { method: 'PATCH', body: { name, email, role: staffRole, section } })
+        if (data.temporaryPassword) {
+          setNewStaffCredential({ email, password: data.temporaryPassword })
+        }
+        event.currentTarget.reset()
+      } catch (error) {
+        setStaffActionError(error.message)
+      } finally {
+        setStaffActionBusy('')
+      }
     }
   }
 
-  function updateEmployeeSection(email, section) {
+  async function updateEmployeeSection(email, section) {
     const member = staff.find((item) => item.email === email)
-    setStaff((current) => current.map((item) => (
-      item.email === email ? { ...item, section, updatedAt: new Date().toISOString() } : item
-    )))
-    if (member) syncStaffToMongo({ name: member.name, email, role: 'employee', section })
-  }
-
-  function removeStaffAccount(email) {
-    setStaff((current) => current.filter((item) => item.email !== email))
-    syncStaffToMongo({ email, role: 'user', section: null })
-  }
-
-  async function syncStaffToMongo(details) {
+    if (!member) return
+    setStaffActionError('')
+    setStaffActionBusy(email)
     try {
-      await apiFetch('/api/users/upsert-by-email', { method: 'PATCH', body: details })
+      await apiFetch('/api/users/upsert-by-email', { method: 'PATCH', body: { name: member.name, email, role: 'employee', section } })
     } catch (error) {
-      // Firestore already has the change (that's what the live site reads),
-      // so a Mongo sync failure here is non-fatal - just surface it quietly.
-      console.warn('Could not sync staff account to MongoDB:', error.message)
+      setStaffActionError(error.message)
+    } finally {
+      setStaffActionBusy('')
+    }
+  }
+
+  async function removeStaffAccount(member) {
+    if (!member?.id) {
+      setStaffActionError('This account was created before the account-management update - ask an admin to remove it from MongoDB directly.')
+      return
+    }
+    setStaffActionError('')
+    setStaffActionBusy(member.email)
+    try {
+      await apiFetch(`/api/users/${member.id}`, { method: 'DELETE' })
+    } catch (error) {
+      setStaffActionError(error.message)
+    } finally {
+      setStaffActionBusy('')
     }
   }
 
@@ -274,6 +308,13 @@ function AdminPage({
                 Push Book
               </button>
             )}
+            {availableSections.includes('approvals') && (
+              <button className={activeAdminSection === 'approvals' ? 'active' : ''} onClick={() => setActiveAdminSection('approvals')} type="button">
+                <i className="bi bi-patch-check" />
+                Approvals
+                {pendingBooks.length > 0 && <span className="tab-count-badge">{pendingBooks.length}</span>}
+              </button>
+            )}
             {availableSections.includes('team') && (
               <button className={activeAdminSection === 'team' ? 'active' : ''} onClick={() => setActiveAdminSection('team')} type="button">
                 <i className="bi bi-people" />
@@ -321,6 +362,9 @@ function AdminPage({
               </div>
               <span>{bookAccess === 'read' ? 'To Read - open to every reader, no rental needed' : 'To Rent - readers unlock this with a rental'}</span>
             </div>
+            {managedBooksError && (
+              <p className="admin-validation-error"><i className="bi bi-x-circle" /> {managedBooksError}</p>
+            )}
 
             <div className="admin-choice-grid admin-choice-grid-2" role="tablist" aria-label="Push Book shelf">
               {availableBookSections.length === 2 ? accessChoices.map((choice) => (
@@ -429,11 +473,20 @@ function AdminPage({
                 ))}
                 <label>
                   Status
-                  <select value={adminBook.status} onChange={(event) => updateAdminBook('status', event.target.value)}>
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="hidden">Hidden</option>
-                  </select>
+                  {isAdmin ? (
+                    <select value={adminBook.status} onChange={(event) => updateAdminBook('status', event.target.value)}>
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                      <option value="hidden">Hidden</option>
+                    </select>
+                  ) : (
+                    <>
+                      <select disabled value="draft">
+                        <option value="draft">Draft - waiting for admin approval</option>
+                      </select>
+                      <small className="form-note">An admin needs to approve this before it appears on the main site.</small>
+                    </>
+                  )}
                 </label>
                 <div className="admin-choice-field">
                   <span>Language</span>
@@ -666,16 +719,31 @@ function AdminPage({
               ))}
             </div>
 
+            {staffActionError && (
+              <p className="admin-validation-error"><i className="bi bi-x-circle" /> {staffActionError}</p>
+            )}
+            {newStaffCredential && (
+              <div className="admin-validation-panel" aria-live="polite">
+                <strong>Account created</strong>
+                <span>
+                  <i className="bi bi-key" />
+                  {newStaffCredential.email} - one-time password: <code>{newStaffCredential.password}</code>
+                </span>
+                <span>Share this with them directly. It is only shown once and won&apos;t be stored anywhere.</span>
+                <button className="ghost-button" onClick={() => setNewStaffCredential(null)} type="button">Dismiss</button>
+              </div>
+            )}
+
             {userTab === 'manager' && isAdmin && (
               <>
                 <ExistingAccountPicker onPick={(user) => setManagerPrefill({ name: user.name, email: user.email })} />
                 <form className="admin-form compact-form" key={managerPrefill.email} onSubmit={createStaffAccount('manager')}>
                   <p className="form-note">
-                    Manager accounts log in with their email and the default password <strong>Admin123</strong>. Managers assign employees to a Push Book shelf and manage customer access.
+                    Creating a manager generates a one-time password shown to you once, valid for their first login. Managers assign employees to a Push Book shelf and manage customer access.
                   </p>
                   <label>Name<input defaultValue={managerPrefill.name} name="name" placeholder="Manager name" required /></label>
                   <label>Email<input defaultValue={managerPrefill.email} name="email" placeholder="manager@bookworm.com" required type="email" /></label>
-                  <button className="primary-button" type="submit">Create manager</button>
+                  <button className="primary-button" disabled={staffActionBusy !== ''} type="submit">Create manager</button>
                 </form>
 
                 <section className="admin-table staff-table">
@@ -684,9 +752,16 @@ function AdminPage({
                     managerAccounts.map((member) => (
                       <div className="table-row" key={member.email}>
                         <span>{member.name}</span>
-                        <small>{member.email}</small>
+                        <small>{maskEmail(member.email)}</small>
                         <div className="admin-row-actions">
-                          <button className="ghost-button" onClick={() => removeStaffAccount(member.email)} type="button">Remove</button>
+                          <button
+                            className="ghost-button"
+                            disabled={staffActionBusy === member.email}
+                            onClick={() => removeStaffAccount(member)}
+                            type="button"
+                          >
+                            {staffActionBusy === member.email ? 'Removing...' : 'Remove'}
+                          </button>
                         </div>
                       </div>
                     ))
@@ -702,7 +777,7 @@ function AdminPage({
                 <ExistingAccountPicker onPick={(user) => setEmployeePrefill({ name: user.name, email: user.email })} />
                 <form className="admin-form compact-form" key={employeePrefill.email} onSubmit={createStaffAccount('employee')}>
                   <p className="form-note">
-                    Employee accounts log in with their email and the default password <strong>Admin123</strong>. Pick one Push Book shelf - employees only manage that shelf.
+                    Creating an employee generates a one-time password shown to you once, valid for their first login. Pick one Push Book shelf - employees only manage that shelf.
                   </p>
                   <label>Name<input defaultValue={employeePrefill.name} name="name" placeholder="Employee name" required /></label>
                   <label>Email<input defaultValue={employeePrefill.email} name="email" placeholder="employee@bookworm.com" required type="email" /></label>
@@ -713,7 +788,7 @@ function AdminPage({
                       <option value="rent">To Rent</option>
                     </select>
                   </label>
-                  <button className="primary-button" type="submit">Create employee</button>
+                  <button className="primary-button" disabled={staffActionBusy !== ''} type="submit">Create employee</button>
                 </form>
 
                 <section className="admin-table staff-table">
@@ -722,16 +797,24 @@ function AdminPage({
                     employeeAccounts.map((member) => (
                       <div className="table-row" key={member.email}>
                         <span>{member.name}</span>
-                        <small>{member.email}</small>
+                        <small>{maskEmail(member.email)}</small>
                         <div className="admin-row-actions">
                           <select
+                            disabled={staffActionBusy === member.email}
                             onChange={(event) => updateEmployeeSection(member.email, event.target.value)}
                             value={member.section === 'rent' ? 'rent' : 'read'}
                           >
                             <option value="read">To Read</option>
                             <option value="rent">To Rent</option>
                           </select>
-                          <button className="ghost-button" onClick={() => removeStaffAccount(member.email)} type="button">Remove</button>
+                          <button
+                            className="ghost-button"
+                            disabled={staffActionBusy === member.email}
+                            onClick={() => removeStaffAccount(member)}
+                            type="button"
+                          >
+                            {staffActionBusy === member.email ? 'Removing...' : 'Remove'}
+                          </button>
                         </div>
                       </div>
                     ))
@@ -750,7 +833,7 @@ function AdminPage({
                   customerAccounts.map((user) => (
                     <div className="table-row" key={user.email}>
                       <span>{user.name}</span>
-                      <small>{user.email}</small>
+                      <small>{maskEmail(user.email)}</small>
                       <div className="admin-row-actions">
                         <em className={`admin-status ${user.locked ? 'status-hidden' : 'status-published'}`}>
                           {user.locked ? 'locked' : 'active'}
@@ -768,6 +851,10 @@ function AdminPage({
             )}
           </section>
         </>
+      ) : null}
+
+      {activeAdminSection === 'approvals' && canApproveBooks ? (
+        <BookApprovalsPanel books={pendingBooks} onApprove={onApproveBook} onReject={onRejectBook} />
       ) : null}
 
       {activeAdminSection === 'requests' && canReviewRequests ? (
@@ -847,6 +934,59 @@ function ExistingAccountPicker({ onPick }) {
         </div>
       )}
     </div>
+  )
+}
+
+function BookApprovalsPanel({ books, onApprove, onReject }) {
+  const [busyId, setBusyId] = useState('')
+
+  async function approve(book) {
+    setBusyId(book.id)
+    await onApprove?.(book.id)
+    setBusyId('')
+  }
+
+  async function reject(book) {
+    setBusyId(book.id)
+    await onReject?.(book.id)
+    setBusyId('')
+  }
+
+  return (
+    <section className="admin-workspace">
+      <div className="section-heading">
+        <div>
+          <p className="mono-eyebrow">Approvals</p>
+          <h2>Books waiting for approval</h2>
+        </div>
+        <span>Manager/Employee submissions land here as drafts. Approve to publish on the main site, or reject to remove the draft.</span>
+      </div>
+
+      <section className="admin-table staff-table">
+        <h2>Pending ({books.length})</h2>
+        {books.length ? (
+          books.map((book) => (
+            <div className="table-row request-review-row" key={book.id}>
+              <span>
+                {book.title}
+                <em className="admin-status status-draft">{book.access === 'rent' ? 'To Rent' : 'To Read'}</em>
+              </span>
+              <small>{book.author || 'Unknown author'}</small>
+              <div className="admin-row-actions">
+                <button className="primary-button" disabled={busyId === book.id} onClick={() => approve(book)} type="button">
+                  <i className="bi bi-check2-circle" /> Approve
+                </button>
+                <button className="ghost-button" disabled={busyId === book.id} onClick={() => reject(book)} type="button">
+                  <i className="bi bi-x-circle" /> Reject
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p>Nothing waiting for approval.</p>
+        )}
+      </section>
+    </section>
   )
 }
 

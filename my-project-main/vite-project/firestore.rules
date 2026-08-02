@@ -10,16 +10,30 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }
 
-    // Prototype rule for public book data: guest users can still add views and comments.
-    // Tighten this before production if admin-only book/staff editing is required.
+    // Books/view-counts/notifications/etc. stay readable AND writable by
+    // everyone, including guests who never sign in (that's intentional -
+    // browsing and commenting anonymously is a supported feature of this
+    // app) - EXCEPT the `staff` field: that one decides who is
+    // Admin/Manager/Employee, so it may only be changed by the backend (via
+    // the Admin SDK, which bypasses these rules) after a real role check -
+    // never directly by a client. This is what stops someone from opening
+    // devtools and promoting themselves to admin/manager by editing this
+    // document, without breaking anonymous browsing/commenting for guests.
     match /bookwormData/global {
       allow read: if true;
-      allow write: if true;
+      allow create: if !('staff' in request.resource.data);
+      allow update: if request.resource.data.get('staff', []) == resource.data.get('staff', []);
     }
 
+    // Comments also stay open to guests. We can't verify authorship without
+    // requiring sign-in (which would break anonymous comments), so the one
+    // thing we DO enforce is append-only: the items array may only grow,
+    // never shrink/replace, so nobody can wipe someone else's reviews for a
+    // book by overwriting the document.
     match /bookwormComments/{bookId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if true;
+      allow update: if request.resource.data.items.size() >= resource.data.items.size();
     }
   }
 }

@@ -27,10 +27,17 @@ function serializeRental(doc) {
 // POST /api/rentals - any signed-in user creates a rental order (COD checkout).
 router.post('/', requireJwtAuth, async (req, res) => {
   try {
+    if (req.authUser.role === 'admin') {
+      return res.status(403).json({ error: 'Admin accounts cannot rent books.' })
+    }
+
     const { bookId, bookTitle, recipientName, phone, address, note } = req.body || {}
     if (!bookId || !bookTitle) return res.status(400).json({ error: 'bookId and bookTitle are required.' })
     if (!recipientName || !phone || !address) {
       return res.status(400).json({ error: 'recipientName, phone, and address are required.' })
+    }
+    if (!/^\d{10}$/.test(String(phone).trim())) {
+      return res.status(400).json({ error: 'Phone number must be exactly 10 digits.' })
     }
 
     const alreadyPending = await Rental.findOne({ user: req.authUser.uid, bookId, status: 'pending' })

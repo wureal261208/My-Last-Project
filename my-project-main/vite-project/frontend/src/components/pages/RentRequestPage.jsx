@@ -8,6 +8,10 @@ const STATUS_LABELS = {
   declined: 'Declined',
 }
 
+function isValidPhone(phone) {
+  return /^\d{10}$/.test(phone.trim())
+}
+
 function RentRequestPage({ account, books = [], notifications = [], onMarkNotificationRead, onSubmitRequest, rentalRequests = [] }) {
   const [step, setStep] = useState('pick') // 'pick' | 'checkout'
   const [query, setQuery] = useState('')
@@ -29,7 +33,9 @@ function RentRequestPage({ account, books = [], notifications = [], onMarkNotifi
     ? books.filter((book) => book.title.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
     : []
   const selectedBook = books.find((book) => book.id === selectedBookId)
-  const canConfirm = form.recipientName.trim() && form.phone.trim() && form.address.trim()
+  const phoneTouched = form.phone.trim().length > 0
+  const phoneValid = isValidPhone(form.phone)
+  const canConfirm = form.recipientName.trim() && phoneValid && form.address.trim()
 
   function pickBook(book) {
     setSelectedBookId(book.id)
@@ -43,7 +49,7 @@ function RentRequestPage({ account, books = [], notifications = [], onMarkNotifi
 
   function confirmOrder(event) {
     event.preventDefault()
-    if (!selectedBook || !canConfirm) return
+    if (!selectedBook || !canConfirm || !phoneValid) return
 
     onSubmitRequest?.(selectedBook, {
       recipientName: form.recipientName.trim(),
@@ -109,7 +115,18 @@ function RentRequestPage({ account, books = [], notifications = [], onMarkNotifi
             </label>
             <label className="wide-field">
               Phone number
-              <input onChange={(event) => updateForm('phone', event.target.value)} placeholder="09xx xxx xxx" required type="tel" value={form.phone} />
+              <input
+                inputMode="numeric"
+                maxLength={10}
+                onChange={(event) => updateForm('phone', event.target.value.replace(/\D/g, ''))}
+                placeholder="0912345678"
+                required
+                type="tel"
+                value={form.phone}
+              />
+              {phoneTouched && !phoneValid && (
+                <small className="field-error">Phone number must be exactly 10 digits.</small>
+              )}
             </label>
             <label className="wide-field">
               Delivery address

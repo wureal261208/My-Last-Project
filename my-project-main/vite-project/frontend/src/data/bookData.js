@@ -83,13 +83,11 @@ export function hasAccess(role, minimumRole) {
   return getRoleLevel(role) >= getRoleLevel(minimumRole)
 }
 
+// Reference credentials used by backend/scripts/seedTestAccounts.js to
+// provision the 4 test roles (Admin/Manager/Employee/Customer) end to end.
 export const starterAccounts = [
   { name: 'Customer Demo', email: 'customer@bookworm.test', password: 'customer123', role: 'customer' },
   { name: 'Employee Demo', email: 'employee@bookworm.test', password: 'employee123', role: 'employee' },
   { name: 'Manager Demo', email: 'manager@bookworm.test', password: 'manager123', role: 'manager' },
   { name: 'Admin Demo', email: 'admin@bookworm.test', password: 'admin123', role: 'admin' },
 ]
-
-export const ADMIN_EMAIL = 'adminbookworm2026@gmail.com'
-export const STAFF_DEFAULT_PASSWORD = 'Admin123'
-export const ADMIN_EMAILS = [ADMIN_EMAIL]

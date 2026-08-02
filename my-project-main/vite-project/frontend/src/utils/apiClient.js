@@ -6,6 +6,20 @@ import { auth } from '../firebase'
 // (see backend/.env PORT), unless VITE_API_BASE_URL overrides it either way.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? '' : 'http://127.0.0.1:4010')
 
+// For public endpoints (e.g. GET /api/books) that guests - who have no
+// Firebase session at all - still need to reach. Do NOT use this for
+// anything that mutates data or returns another user's private info.
+export async function publicApiFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || `Request failed with status ${response.status}`)
+  return data
+}
+
 export async function apiFetch(path, options = {}) {
   const user = auth.currentUser
   if (!user) throw new Error('You must be signed in to call the API.')
