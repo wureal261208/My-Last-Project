@@ -1,22 +1,12 @@
 import { useState } from 'react'
 import { getAuthor, getCover, getInitials } from '../../utils/bookUtils'
+import { maskEmail } from '../../utils/maskEmail'
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const DISPLAY_NAME_MAX = 32
 const DISPLAY_NAME_MIN = 2
 const DISPLAY_NAME_PATTERN = /^[\p{L}\p{N} ._'-]+$/u
-
-function maskEmail(email) {
-  if (!email) return 'No email linked yet'
-  const [localPart, domain = ''] = email.split('@')
-  if (!localPart || !domain) return email
-
-  const visiblePrefix = localPart.slice(0, Math.min(2, localPart.length))
-  const visibleSuffix = localPart.slice(-1)
-  const maskedLocal = `${visiblePrefix}${'*'.repeat(Math.max(2, localPart.length - 2))}${visibleSuffix}`
-  return `${maskedLocal}@${domain}`
-}
 
 function ProfilePage({
   account,

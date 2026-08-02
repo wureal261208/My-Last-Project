@@ -10,11 +10,8 @@ import {
 } from 'firebase/auth'
 import AuthPage from './components/auth/AuthPage'
 import AppShell from './components/layout/AppShell'
-import { apiFetch } from './utils/apiClient'
+import { apiFetch, publicApiFetch } from './utils/apiClient'
 import {
-  ADMIN_EMAILS,
-  API_URL,
-  STAFF_DEFAULT_PASSWORD,
   fallbackBooks,
   hasAccess,
   mergeBookCatalogs,
@@ -105,7 +102,8 @@ function App() {
   const routeTimerRef = useRef(null)
   const [books, setBooks] = useState(fallbackBooks)
   const [, setBooksLoading] = useState(false)
-  const [managedBooks, setManagedBooks] = useState(globalDataDefaults.managedBooks)
+  const [managedBooks, setManagedBooks] = useState([])
+  const [managedBooksError, setManagedBooksError] = useState('')
   const [rentals, setRentals] = useState(() => {
     if (typeof window === 'undefined') return []
 
@@ -159,20 +157,22 @@ function App() {
   const migratedLegacyCommentsRef = useRef(false)
   const activePage = pageState.activePage
 
-  const staffEmails = useMemo(() => staff.map((item) => item.email.toLowerCase()), [staff])
-  const getAccountRole = useCallback(
-    (email) => {
-      const normalizedEmail = (email || '').toLowerCase()
-      if (ADMIN_EMAILS.includes(normalizedEmail)) return 'admin'
-
-      const matchingStaff = staff.find((item) => (item.email || '').toLowerCase() === normalizedEmail)
-      if (matchingStaff?.role) return normalizeRole(matchingStaff.role)
-      if (staffEmails.includes(normalizedEmail)) return 'manager'
-
+  // Role is resolved from the backend (verified Firebase ID token -> role
+  // stored in MongoDB), never from the Firestore `staff` array directly -
+  // that array is only readable/writable by the backend now, but the app
+  // still shouldn't trust client-visible data for something as sensitive as
+  // "is this person an admin". Any failure to reach the backend defaults to
+  // 'customer' (fail closed): worse case an admin briefly can't reach
+  // /admin, never the other way around.
+  const resolveTrustedRole = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/users/me')
+      return normalizeRole(data.user?.role) || 'customer'
+    } catch (error) {
+      console.warn('Could not verify account role from server, defaulting to customer:', error.message)
       return 'customer'
-    },
-    [staff, staffEmails],
-  )
+    }
+  }, [])
 
   const scrollToTopForPage = useCallback((page) => {
     if (typeof window === 'undefined') return
@@ -297,7 +297,6 @@ function App() {
     return subscribeGlobalData(
       (data) => {
         const nextData = {
-          managedBooks: data.managedBooks || [],
           viewCounts: data.viewCounts || {},
           bookReaders: data.bookReaders || {},
           staff: data.staff || [],
@@ -306,8 +305,7 @@ function App() {
           notifications: data.notifications || [],
         }
 
-        globalDataSnapshotRef.current = data.needsManagedBooksCleanup ? '' : stableStringify(nextData)
-        setManagedBooks(nextData.managedBooks)
+        globalDataSnapshotRef.current = stableStringify(nextData)
         setViewCounts(nextData.viewCounts)
         setBookReaders(nextData.bookReaders)
         if (data.comments && Object.keys(data.comments).length) {
@@ -454,12 +452,13 @@ function App() {
 
       const savedSettings = accountSettingsRef.current[user.uid] || accountSettingsRef.current[email] || {}
       if (savedSettings.websiteTheme) setWebsiteTheme(savedSettings.websiteTheme)
+      const trustedRole = await resolveTrustedRole()
       const nextAccount = {
         id: user.uid,
         name: savedSettings.displayName || user.displayName || email.split('@')[0] || 'Reader',
         email,
         avatar: savedSettings.avatar || user.photoURL || '',
-        role: getAccountRole(email),
+        role: trustedRole,
       }
 
       setAccount(nextAccount)
@@ -475,24 +474,41 @@ function App() {
     })
 
     return unsubscribe
-  }, [getAccountRole, navigateTo])
+  }, [navigateTo, resolveTrustedRole])
 
   useEffect(() => {
     if (account.role === 'guest' || !account.email) return
 
-    const nextRole = getAccountRole(account.email)
-    if (nextRole === account.role) return
-
     let isCurrent = true
-    queueMicrotask(() => {
-      if (!isCurrent) return
+    resolveTrustedRole().then((nextRole) => {
+      if (!isCurrent || nextRole === account.role) return
       setAccount((current) => ({ ...current, role: nextRole }))
     })
 
     return () => {
       isCurrent = false
     }
-  }, [account.email, account.role, getAccountRole])
+  }, [account.email, account.role, resolveTrustedRole])
+
+  useEffect(() => {
+    if (!['admin', 'manager', 'employee'].includes(account.role)) {
+      queueMicrotask(() => setManagedBooks([]))
+      return
+    }
+
+    let ignore = false
+    apiFetch('/api/books/mine')
+      .then((data) => {
+        if (!ignore) setManagedBooks(Array.isArray(data.books) ? data.books : [])
+      })
+      .catch((error) => {
+        if (!ignore) setManagedBooksError(error.message)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [account.email, account.role])
 
   useEffect(() => {
     if (account.role === 'guest' || !account.email) return
@@ -517,11 +533,8 @@ function App() {
       setBooksLoading(true)
       try {
         const pageRequests = [1, 2, 3].map(async (page) => {
-          const response = await fetch(`${API_URL}/?languages=en&sort=popular&page=${page}`)
-          if (!response.ok) return []
-
-          const data = await response.json()
-          return Array.isArray(data.results) ? data.results : []
+          const data = await publicApiFetch(`/api/books?limit=32&page=${page}`).catch(() => ({ books: [] }))
+          return Array.isArray(data.books) ? data.books : []
         })
 
         const pages = await Promise.all(pageRequests)
@@ -547,7 +560,6 @@ function App() {
     if (!globalDataReady) return
 
     const nextGlobalData = {
-      managedBooks,
       viewCounts,
       bookReaders,
       staff,
@@ -560,7 +572,7 @@ function App() {
 
     globalDataSnapshotRef.current = nextSnapshot
     saveGlobalData(nextGlobalData).catch(handleDataSyncError)
-  }, [bookReaders, globalDataReady, handleDataSyncError, knownUsers, managedBooks, notifications, rentalRequests, staff, viewCounts])
+  }, [bookReaders, globalDataReady, handleDataSyncError, knownUsers, notifications, rentalRequests, staff, viewCounts])
 
   useEffect(() => {
     if (account.role === 'guest' || !userDataReady) return
@@ -617,15 +629,7 @@ function App() {
         return
       }
 
-      try {
-        await signInWithEmailAndPassword(auth, email, password)
-      } catch (error) {
-        const isStaffSeed = staffEmails.includes(email) && password === STAFF_DEFAULT_PASSWORD
-        if (!isStaffSeed || error.code !== 'auth/invalid-credential') throw error
-        const credential = await createUserWithEmailAndPassword(auth, email, password)
-        const staffAccount = staff.find((item) => item.email.toLowerCase() === email)
-        await updateProfile(credential.user, { displayName: staffAccount?.name || 'BookWorm Staff' })
-      }
+      await signInWithEmailAndPassword(auth, email, password)
 
       setAuthForm(emptyAuthForm)
       setToast({ type: 'success', message: 'Login successful. Welcome back.' })
@@ -636,7 +640,7 @@ function App() {
     } finally {
       setAuthLoading(false)
     }
-  }, [authForm.email, authForm.name, authForm.password, authMode, staff, staffEmails])
+  }, [authForm.email, authForm.name, authForm.password, authMode])
 
   function updateAuthMode(nextMode) {
     setAuthMode(nextMode)
@@ -889,9 +893,29 @@ function App() {
     }
   }
 
-  function decideRentalRequest(requestId, { status, deliveryAt = null, responseNote = '' }) {
+  async function decideRentalRequest(requestId, { status, deliveryAt = null, responseNote = '' }) {
     const request = rentalRequests.find((item) => item.id === requestId)
     if (!request) return
+
+    // The backend route (admin/manager only, enforced server-side) is the
+    // real authorization check now - it must succeed before we show the
+    // decision as final. If this specific order never made it into MongoDB
+    // (e.g. the backend was briefly unreachable when it was placed), we
+    // refuse rather than silently approve/decline with no server check at
+    // all.
+    if (!request.mongoRentalId) {
+      setToast({ type: 'error', message: 'This order has no matching MongoDB record, so it cannot be approved/declined safely. Ask an admin to check the backend logs.' })
+      return
+    }
+
+    try {
+      const path = status === 'approved' ? `/api/rentals/${request.mongoRentalId}/approve` : `/api/rentals/${request.mongoRentalId}/decline`
+      const body = status === 'approved' ? { deliveryAt } : undefined
+      await apiFetch(path, { method: 'PATCH', body })
+    } catch (error) {
+      setToast({ type: 'error', message: error.message })
+      return
+    }
 
     setRentalRequests((current) => current.map((item) => (
       item.id === requestId
@@ -916,14 +940,6 @@ function App() {
       },
       ...current,
     ])
-
-    if (request.mongoRentalId) {
-      const path = status === 'approved' ? `/api/rentals/${request.mongoRentalId}/approve` : `/api/rentals/${request.mongoRentalId}/decline`
-      const body = status === 'approved' ? { deliveryAt } : undefined
-      apiFetch(path, { method: 'PATCH', body }).catch((error) => {
-        console.warn('Could not sync rental decision to MongoDB:', error.message)
-      })
-    }
   }
 
   function markNotificationRead(notificationId) {
@@ -938,7 +954,7 @@ function App() {
     )))
   }
 
-  function addManagedBook(event) {
+  async function addManagedBook(event) {
     event.preventDefault()
     const validationErrors = validateAdminBook(adminBook, managedBooks)
     if (validationErrors.length) {
@@ -946,16 +962,32 @@ function App() {
       return
     }
 
-    const nextBook = createAdminBookRecord(adminBook)
+    const record = createAdminBookRecord(adminBook)
+    setManagedBooksError('')
+    try {
+      const { book } = adminBook.id
+        ? await apiFetch(`/api/books/${adminBook.id}`, { method: 'PUT', body: record })
+        : await apiFetch('/api/books', { method: 'POST', body: record })
 
-    setManagedBooks((current) => {
-      const exists = current.some((book) => book.id === nextBook.id)
-      if (exists) return current.map((book) => (book.id === nextBook.id ? nextBook : book))
+      setManagedBooks((current) => {
+        const exists = current.some((item) => item.id === book.id)
+        return exists ? current.map((item) => (item.id === book.id ? book : item)) : [book, ...current]
+      })
+      setAdminBook(emptyAdminBook)
+      setToast({ type: 'success', message: book.status === 'published' ? 'Book published to the main site.' : 'Book saved in Admin.' })
+    } catch (error) {
+      setManagedBooksError(error.message)
+      setToast({ type: 'error', message: error.message })
+    }
+  }
 
-      return [nextBook, ...current]
-    })
-    setAdminBook(emptyAdminBook)
-    setToast({ type: 'success', message: nextBook.status === 'published' ? 'Book published to the main site.' : 'Book saved in Admin.' })
+  async function removeManagedBook(id) {
+    try {
+      await apiFetch(`/api/books/${id}`, { method: 'DELETE' })
+      setManagedBooks((current) => current.filter((book) => book.id !== id))
+    } catch (error) {
+      setToast({ type: 'error', message: error.message })
+    }
   }
 
   function editManagedBook(book) {
@@ -1158,11 +1190,11 @@ function App() {
         adminBook={adminBook}
         books={allBooks}
         managedBooks={managedBooks}
-        removeManagedBook={(id) => setManagedBooks((current) => current.filter((book) => book.id !== id))}
+        managedBooksError={managedBooksError}
+        removeManagedBook={removeManagedBook}
         editManagedBook={editManagedBook}
         resetAdminBook={() => setAdminBook(emptyAdminBook)}
         setAdminBook={setAdminBook}
-        setStaff={setStaff}
         staff={staff}
         users={knownUsers}
         onToggleUserLock={toggleUserLock}
@@ -1304,7 +1336,6 @@ function createAdminBookRecord(adminBook) {
 
   return {
     ...adminBook,
-    id: adminBook.id || `managed-${Date.now()}`,
     title: adminBook.title.trim(),
     access: adminBook.access === 'rent' ? 'rent' : 'read',
     author,

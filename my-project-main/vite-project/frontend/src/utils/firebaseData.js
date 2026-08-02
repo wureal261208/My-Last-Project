@@ -2,7 +2,6 @@ import { arrayUnion, collection, deleteField, doc, onSnapshot, setDoc } from 'fi
 import { db } from '../firebase'
 
 export const globalDataDefaults = {
-  managedBooks: [],
   viewCounts: {},
   bookReaders: {},
   comments: {},
@@ -43,14 +42,7 @@ export function subscribeGlobalData(onData, onError) {
     globalDataRef,
     (snapshot) => {
       const data = snapshot.data() || {}
-      const hasManagedBooks = Array.isArray(data.managedBooks)
-      const hasLegacyBooks = Object.hasOwn(data, 'localBooks')
-      onData({
-        ...globalDataDefaults,
-        ...data,
-        managedBooks: hasManagedBooks ? data.managedBooks : data.localBooks || [],
-        needsManagedBooksCleanup: hasLegacyBooks,
-      })
+      onData({ ...globalDataDefaults, ...data })
     },
     onError,
   )
